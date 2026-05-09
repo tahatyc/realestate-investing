@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSettings, useUpdateSettings } from '../api/client.js';
+import MetricLabel from '../components/MetricLabel.jsx';
 import { ErrorState, LoadingState } from '../components/StatusViews.jsx';
 
 export default function Settings() {
@@ -47,10 +48,10 @@ export default function Settings() {
       </div>
 
       <Panel title="General Assumptions">
-        <Field label="Target gross yield %" value={form.general.targetGrossYieldPct} onChange={(value) => patch('general', 'targetGrossYieldPct', value)} />
-        <Field label="Target net yield %" value={form.general.targetNetYieldPct} onChange={(value) => patch('general', 'targetNetYieldPct', value)} />
-        <Field label="Vacancy %" value={form.general.vacancyPct} onChange={(value) => patch('general', 'vacancyPct', value)} />
-        <Field label="Management fee %" value={form.general.managementFeePct} onChange={(value) => patch('general', 'managementFeePct', value)} />
+        <Field labelKey="targetGrossYieldPct" value={form.general.targetGrossYieldPct} onChange={(value) => patch('general', 'targetGrossYieldPct', value)} />
+        <Field labelKey="targetNetYieldPct" value={form.general.targetNetYieldPct} onChange={(value) => patch('general', 'targetNetYieldPct', value)} />
+        <Field labelKey="vacancyPct" value={form.general.vacancyPct} onChange={(value) => patch('general', 'vacancyPct', value)} />
+        <Field labelKey="managementFeePct" value={form.general.managementFeePct} onChange={(value) => patch('general', 'managementFeePct', value)} />
       </Panel>
 
       <Panel title="Mortgage / Leverage">
@@ -58,25 +59,25 @@ export default function Settings() {
           <input type="checkbox" checked={form.leverage.enabled} onChange={(event) => patch('leverage', 'enabled', event.target.checked)} />
           Enable leverage analysis
         </label>
-        <Field label="Interest rate %" value={form.leverage.mortgageRate} onChange={(value) => patch('leverage', 'mortgageRate', value)} />
-        <Field label="Loan term years" value={form.leverage.loanTermYears} onChange={(value) => patch('leverage', 'loanTermYears', value)} />
-        <Field label="Down payment %" value={form.leverage.downPaymentPct} onChange={(value) => patch('leverage', 'downPaymentPct', value)} />
-        <Field label="LTV %" value={form.leverage.ltvPct} onChange={(value) => patch('leverage', 'ltvPct', value)} />
-        <Field label="Origination fee %" value={form.leverage.originationFeePct} onChange={(value) => patch('leverage', 'originationFeePct', value)} />
-        <Field label="Annual insurance EUR" value={form.leverage.annualInsuranceEur} onChange={(value) => patch('leverage', 'annualInsuranceEur', value)} />
+        <Field labelKey="mortgageRate" value={form.leverage.mortgageRate} onChange={(value) => patch('leverage', 'mortgageRate', value)} />
+        <Field labelKey="loanTermYears" value={form.leverage.loanTermYears} onChange={(value) => patch('leverage', 'loanTermYears', value)} />
+        <Field labelKey="downPaymentPct" value={form.leverage.downPaymentPct} onChange={(value) => patch('leverage', 'downPaymentPct', value)} />
+        <Field labelKey="ltvPct" value={form.leverage.ltvPct} onChange={(value) => patch('leverage', 'ltvPct', value)} />
+        <Field labelKey="originationFeePct" value={form.leverage.originationFeePct} onChange={(value) => patch('leverage', 'originationFeePct', value)} />
+        <Field labelKey="annualInsuranceEur" value={form.leverage.annualInsuranceEur} onChange={(value) => patch('leverage', 'annualInsuranceEur', value)} />
       </Panel>
 
       <Panel title="Investment Health Thresholds">
-        <Field label="CoC green %" value={form.flags.cocGreenPct} onChange={(value) => patch('flags', 'cocGreenPct', value)} />
-        <Field label="CoC yellow %" value={form.flags.cocYellowPct} onChange={(value) => patch('flags', 'cocYellowPct', value)} />
-        <Field label="DSCR minimum" value={form.flags.dscrMinimum} onChange={(value) => patch('flags', 'dscrMinimum', value)} />
-        <Field label="Rate stress %" value={form.flags.rateStressPct} onChange={(value) => patch('flags', 'rateStressPct', value)} />
+        <Field labelKey="cocGreenPct" value={form.flags.cocGreenPct} onChange={(value) => patch('flags', 'cocGreenPct', value)} />
+        <Field labelKey="cocYellowPct" value={form.flags.cocYellowPct} onChange={(value) => patch('flags', 'cocYellowPct', value)} />
+        <Field labelKey="dscrMinimum" value={form.flags.dscrMinimum} onChange={(value) => patch('flags', 'dscrMinimum', value)} />
+        <Field labelKey="rateStressPct" value={form.flags.rateStressPct} onChange={(value) => patch('flags', 'rateStressPct', value)} />
       </Panel>
 
       <Panel title="Airbnb">
-        <Field label="Occupancy %" value={form.airbnb.occupancyPct} onChange={(value) => patch('airbnb', 'occupancyPct', value)} />
-        <Field label="Daily rate EUR" value={form.airbnb.dailyRateEur} onChange={(value) => patch('airbnb', 'dailyRateEur', value)} />
-        <Field label="Operating expense %" value={form.airbnb.operatingExpensePct} onChange={(value) => patch('airbnb', 'operatingExpensePct', value)} />
+        <Field labelKey="occupancyPct" value={form.airbnb.occupancyPct} onChange={(value) => patch('airbnb', 'occupancyPct', value)} />
+        <Field labelKey="dailyRateEur" value={form.airbnb.dailyRateEur} onChange={(value) => patch('airbnb', 'dailyRateEur', value)} />
+        <Field labelKey="operatingExpensePct" value={form.airbnb.operatingExpensePct} onChange={(value) => patch('airbnb', 'operatingExpensePct', value)} />
       </Panel>
     </form>
   );
@@ -91,10 +92,12 @@ function Panel({ title, children }) {
   );
 }
 
-function Field({ label, value, onChange }) {
+function Field({ labelKey, label, value, onChange }) {
   return (
     <label className="text-sm">
-      <span className="mb-1 block font-medium text-slate-700">{label}</span>
+      <span className="mb-1 block">
+        <MetricLabel labelKey={labelKey} label={label} />
+      </span>
       <input className="input" type="number" step="0.01" value={value ?? ''} onChange={(event) => onChange(Number(event.target.value))} />
     </label>
   );
