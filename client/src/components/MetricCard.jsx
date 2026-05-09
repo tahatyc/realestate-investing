@@ -1,4 +1,6 @@
-export default function MetricCard({ label, value, detail, tone = 'slate' }) {
+import MetricLabel from './MetricLabel.jsx';
+
+export default function MetricCard({ label, labelKey, value, detail, tone = 'slate' }) {
   const toneClass = {
     slate: 'border-slate-200',
     green: 'border-emerald-200',
@@ -9,7 +11,7 @@ export default function MetricCard({ label, value, detail, tone = 'slate' }) {
 
   return (
     <div className={`rounded-md border bg-white p-4 ${toneClass}`}>
-      <p className="text-xs font-medium uppercase text-slate-500">{label}</p>
+      <MetricLabel labelKey={labelKey} label={label} variant="card" />
       <p className="mt-2 text-2xl font-semibold tracking-normal">{value}</p>
       {detail ? <p className="mt-1 text-sm text-slate-500">{detail}</p> : null}
     </div>

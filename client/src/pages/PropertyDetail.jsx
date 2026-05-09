@@ -2,12 +2,13 @@ import { ExternalLink } from 'lucide-react';
 import { useParams } from 'react-router-dom';
 import HealthBadge from '../components/HealthBadge.jsx';
 import MetricCard from '../components/MetricCard.jsx';
+import MetricLabel from '../components/MetricLabel.jsx';
 import PriceChart from '../components/PriceChart.jsx';
 import RateSensitivity from '../components/RateSensitivity.jsx';
 import { ErrorState, LoadingState } from '../components/StatusViews.jsx';
 import { useProperty } from '../api/client.js';
 import { formatCashFlow, formatEur, formatPercent, formatSqm } from '../lib/formatters.js';
-import { getStrategy, metricLabels } from '../lib/strategies.js';
+import { getStrategy } from '../lib/strategies.js';
 
 export default function PropertyDetail() {
   const { id } = useParams();
@@ -39,10 +40,10 @@ export default function PropertyDetail() {
       </div>
 
       <div className="grid gap-3 md:grid-cols-4">
-        <MetricCard label="Price" value={formatEur(property.priceEur)} />
-        <MetricCard label="Area" value={formatSqm(property.areaSqm)} />
-        <MetricCard label="Price/sqm" value={formatEur(property.pricePerSqm)} />
-        <MetricCard label="Condition" value={property.condition ?? '-'} />
+        <MetricCard labelKey="price" value={formatEur(property.priceEur)} />
+        <MetricCard labelKey="area" value={formatSqm(property.areaSqm)} />
+        <MetricCard labelKey="pricePerSqm" value={formatEur(property.pricePerSqm)} />
+        <MetricCard labelKey="condition" value={property.condition ?? '-'} />
       </div>
 
       <section>
@@ -96,7 +97,9 @@ function MetricList({ title, metrics }) {
       <dl className="mt-2 grid grid-cols-2 gap-2 text-sm">
         {Object.entries(metrics).slice(0, 10).map(([key, value]) => (
           <div key={key}>
-            <dt className="text-xs text-slate-500">{metricLabels[key] ?? key}</dt>
+            <dt>
+              <MetricLabel labelKey={key} variant="metric" />
+            </dt>
             <dd className="font-medium">{formatMetric(key, value)}</dd>
           </div>
         ))}
