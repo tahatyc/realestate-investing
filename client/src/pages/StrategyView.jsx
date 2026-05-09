@@ -39,10 +39,10 @@ export default function StrategyView() {
       </div>
 
       <div className="grid gap-3 md:grid-cols-4">
-        <MetricCard label="Results" value={formatNumber(summary.total ?? 0)} />
-        <MetricCard label="Avg CoC" value={formatPercent(summary.avgCocPct)} />
-        <MetricCard label="Green" value={health.green} tone="green" />
-        <MetricCard label="Red" value={health.red} tone="red" />
+        <MetricCard labelKey="results" value={formatNumber(summary.total ?? 0)} />
+        <MetricCard labelKey="coc" value={formatPercent(summary.avgCocPct)} />
+        <MetricCard labelKey="greenCount" value={health.green} tone="green" />
+        <MetricCard labelKey="redCount" value={health.red} tone="red" />
       </div>
 
       <FilterBar filters={filters} setFilters={setFilters} leverageEnabled={leverageEnabled} />

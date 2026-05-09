@@ -36,10 +36,10 @@ export default function Overview() {
       </div>
 
       <div className="grid gap-3 md:grid-cols-4">
-        <MetricCard label="Active listings" value={formatNumber(overview.data.totalListings)} />
-        <MetricCard label="Mortgage rate" value={formatPercent(leverage.mortgageRate)} detail={`${leverage.loanTermYears} years · ${formatPercent(leverage.ltvPct, 0)} LTV`} />
-        <MetricCard label="Last scrape" value={overview.data.lastScrape?.status ?? 'none'} detail={formatDate(overview.data.lastScrape?.started_at)} />
-        <MetricCard label="Health mode" value={leverage.enabled ? 'Leveraged' : 'Cash-only'} detail={leverage.enabled ? 'Traffic lights active' : 'Leveraged columns hidden'} />
+        <MetricCard labelKey="activeListings" value={formatNumber(overview.data.totalListings)} />
+        <MetricCard labelKey="mortgageRate" value={formatPercent(leverage.mortgageRate)} detail={`${leverage.loanTermYears} years · ${formatPercent(leverage.ltvPct, 0)} LTV`} />
+        <MetricCard labelKey="lastScrape" value={overview.data.lastScrape?.status ?? 'none'} detail={formatDate(overview.data.lastScrape?.started_at)} />
+        <MetricCard labelKey="healthMode" value={leverage.enabled ? 'Leveraged' : 'Cash-only'} detail={leverage.enabled ? 'Traffic lights active' : 'Leveraged columns hidden'} />
       </div>
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
