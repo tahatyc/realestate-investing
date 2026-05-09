@@ -4,6 +4,7 @@ import { Fragment } from 'react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import HealthBadge from './HealthBadge.jsx';
+import MetricLabel from './MetricLabel.jsx';
 import RateSensitivity from './RateSensitivity.jsx';
 import { formatCashFlow, formatEur, formatPercent, formatSqm } from '../lib/formatters.js';
 
@@ -26,7 +27,7 @@ export default function PropertyTable({ rows = [], leverageEnabled, currentRate,
         ? [
             {
               id: 'health',
-              header: 'Health',
+              header: <MetricLabel labelKey="health" variant="table" />,
               accessorFn: (row) => row.health,
               cell: ({ getValue }) => <HealthBadge health={getValue()} size="sm" />
             }
@@ -34,13 +35,13 @@ export default function PropertyTable({ rows = [], leverageEnabled, currentRate,
         : []),
       {
         id: 'score',
-        header: 'Score',
+        header: <MetricLabel labelKey="score" variant="table" />,
         accessorFn: (row) => row.score ?? 0,
         cell: ({ getValue }) => formatPercent(getValue())
       },
       {
         id: 'property',
-        header: 'Property',
+        header: <MetricLabel labelKey="property" variant="table" />,
         accessorFn: (row) => row.property?.title ?? row.title,
         cell: ({ row }) => {
           const property = row.original.property ?? row.original;
@@ -56,19 +57,19 @@ export default function PropertyTable({ rows = [], leverageEnabled, currentRate,
       },
       {
         id: 'price',
-        header: 'Price',
+        header: <MetricLabel labelKey="price" variant="table" />,
         accessorFn: (row) => row.property?.priceEur ?? row.priceEur,
         cell: ({ getValue }) => formatEur(getValue())
       },
       {
         id: 'area',
-        header: 'Area',
+        header: <MetricLabel labelKey="area" variant="table" />,
         accessorFn: (row) => row.property?.areaSqm ?? row.areaSqm,
         cell: ({ getValue }) => formatSqm(getValue())
       },
       {
         id: 'yield',
-        header: 'Net yield',
+        header: <MetricLabel labelKey="netYieldPct" variant="table" />,
         accessorFn: (row) => row.cashMetrics?.netYieldPct ?? row.cashMetrics?.roiPct ?? row.cashMetrics?.discountPct,
         cell: ({ getValue }) => formatPercent(getValue())
       },
@@ -76,19 +77,19 @@ export default function PropertyTable({ rows = [], leverageEnabled, currentRate,
         ? [
             {
               id: 'cashFlow',
-              header: 'Cash flow',
+              header: <MetricLabel labelKey="cashFlow" variant="table" />,
               accessorFn: (row) => row.leveragedMetrics?.monthlyCashFlow,
               cell: ({ getValue }) => <span className={Number(getValue()) < 0 ? 'text-rose-700' : 'text-emerald-700'}>{formatCashFlow(getValue())}</span>
             },
             {
               id: 'coc',
-              header: 'CoC',
+              header: <MetricLabel labelKey="coc" variant="table" />,
               accessorFn: (row) => row.leveragedMetrics?.cocPct,
               cell: ({ getValue }) => formatPercent(getValue())
             },
             {
               id: 'breakeven',
-              header: 'Breakeven',
+              header: <MetricLabel labelKey="breakEvenRate" variant="table" />,
               accessorFn: (row) => row.breakEvenRate,
               cell: ({ getValue }) => formatPercent(getValue())
             }
