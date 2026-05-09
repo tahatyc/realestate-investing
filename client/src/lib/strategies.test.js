@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { getStrategy, strategyList } from './strategies.js';
+import { getStrategy, metricLabels, strategyList } from './strategies.js';
 
 describe('strategy frontend definitions', () => {
   test('defines all server strategy routes with cash and leveraged columns', () => {
@@ -24,5 +24,11 @@ describe('strategy frontend definitions', () => {
   test('looks up unknown strategies with a stable fallback', () => {
     assert.equal(getStrategy('cash-flow').label, 'Cash Flow Rental');
     assert.equal(getStrategy('missing').id, 'missing');
+  });
+
+  test('derives readable metric labels from shared metadata', () => {
+    assert.equal(metricLabels.cocPct, 'Cash-on-cash return');
+    assert.equal(metricLabels.monthlyCashFlow, 'Monthly cash flow');
+    assert.equal(metricLabels.breakEvenRate, 'Break-even rate');
   });
 });

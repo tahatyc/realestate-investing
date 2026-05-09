@@ -1,3 +1,5 @@
+import { getLabel } from './labels.js';
+
 export const strategyList = [
   {
     id: 'buy-in-green',
@@ -62,30 +64,33 @@ export function getStrategy(id) {
   );
 }
 
-export const metricLabels = {
-  appreciationPct: 'Appreciation',
-  potentialProfit: 'Profit',
-  holdMonths: 'Hold',
-  leveragedRoiPct: 'Leveraged ROI',
-  leveragedProfit: 'Leveraged profit',
-  interestCost: 'Interest',
-  arv: 'ARV',
-  netYieldPct: 'Net yield',
-  monthlyRent: 'Rent',
-  monthlyCashFlow: 'Cash flow',
-  cocPct: 'CoC',
-  dscr: 'DSCR',
-  profit: 'Profit',
-  roiPct: 'ROI',
-  annualizedRoiPct: 'Annualized',
-  monthlyRevenue: 'Revenue',
-  longTermComparison: 'vs LT',
-  longTermMonthlyCashFlow: 'LT flow',
-  discountPct: 'Discount',
-  discountAmount: 'Discount €',
-  daysOnMarket: 'Days',
-  instantEquity: 'Equity',
-  effectiveLtvPct: 'Effective LTV',
-  equityOnCashRatio: 'Equity/cash',
-  breakEvenRate: 'Breakeven'
-};
+const metricLabelKeys = [
+  'appreciationPct',
+  'potentialProfit',
+  'holdMonths',
+  'leveragedRoiPct',
+  'leveragedProfit',
+  'interestCost',
+  'arv',
+  'netYieldPct',
+  'monthlyRent',
+  'paybackYears',
+  'monthlyCashFlow',
+  'cocPct',
+  'dscr',
+  'profit',
+  'roiPct',
+  'annualizedRoiPct',
+  'monthlyRevenue',
+  'longTermComparison',
+  'longTermMonthlyCashFlow',
+  'discountPct',
+  'discountAmount',
+  'daysOnMarket',
+  'instantEquity',
+  'effectiveLtvPct',
+  'equityOnCashRatio',
+  'breakEvenRate'
+];
+
+export const metricLabels = Object.fromEntries(metricLabelKeys.map((key) => [key, getLabel(key)]));
