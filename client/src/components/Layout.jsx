@@ -1,9 +1,10 @@
-import { Building2, ChartColumn, Gauge, Home, Settings, TableProperties } from 'lucide-react';
+import { BookOpen, Building2, ChartColumn, Gauge, Home, Settings, TableProperties } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { strategyList } from '../lib/strategies.js';
 
 const navItems = [
   { to: '/', label: 'Overview', icon: Gauge },
+  { to: '/metrics-guide', label: 'Metrics Guide', icon: BookOpen },
   ...strategyList.map((strategy) => ({ to: strategy.path, label: strategy.label, icon: TableProperties })),
   { to: '/neighborhoods', label: 'Neighborhoods', icon: ChartColumn },
   { to: '/settings', label: 'Settings', icon: Settings }
