@@ -8,6 +8,7 @@ import RateSensitivity from '../components/RateSensitivity.jsx';
 import { ErrorState, LoadingState } from '../components/StatusViews.jsx';
 import { useProperty } from '../api/client.js';
 import { formatCashFlow, formatEur, formatPercent, formatSqm } from '../lib/formatters.js';
+import { getMetricValueClass } from '../lib/metricValueStyles.js';
 import { getStrategy } from '../lib/strategies.js';
 
 export default function PropertyDetail() {
@@ -100,7 +101,7 @@ function MetricList({ title, metrics }) {
             <dt>
               <MetricLabel labelKey={key} variant="metric" />
             </dt>
-            <dd className="font-medium">{formatMetric(key, value)}</dd>
+            <dd className={`font-medium ${getMetricValueClass(key, value)}`}>{formatMetric(key, value)}</dd>
           </div>
         ))}
       </dl>
