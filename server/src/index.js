@@ -8,6 +8,7 @@ import { createPropertiesRouter } from './routes/properties.js';
 import { createScraperRouter } from './routes/scraper.js';
 import { createSettingsRouter } from './routes/settings.js';
 import { createStrategiesRouter } from './routes/strategies.js';
+import { createTriageRouter } from './routes/triage.js';
 
 export function createApp({ database, scraper } = {}) {
   const app = express();
@@ -23,6 +24,7 @@ export function createApp({ database, scraper } = {}) {
   app.use('/api/scraper', createScraperRouter({ database: activeDatabase, scraper }));
   app.use('/api/strategies', createStrategiesRouter({ database: activeDatabase }));
   app.use('/api/properties', createPropertiesRouter({ database: activeDatabase }));
+  app.use('/api/triage', createTriageRouter({ database: activeDatabase }));
   app.use('/api/neighborhoods', createNeighborhoodsRouter({ database: activeDatabase }));
   app.use('/api/settings', createSettingsRouter({ database: activeDatabase }));
   app.use('/api/overview', createOverviewRouter({ database: activeDatabase }));

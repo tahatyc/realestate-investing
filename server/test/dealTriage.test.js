@@ -9,6 +9,7 @@ import {
 } from '../src/db/dealTriage.js';
 import { insertPriceHistory } from '../src/db/priceHistory.js';
 import { upsertProperty } from '../src/db/properties.js';
+import { createApp } from '../src/index.js';
 import { listDealTriageOpportunities } from '../src/triage/dealTriage.js';
 
 let databases = [];
@@ -43,6 +44,18 @@ afterEach(() => {
   }
   databases = [];
 });
+
+async function withServer(app, callback) {
+  const server = app.listen(0);
+  await new Promise((resolve) => server.once('listening', resolve));
+  const { port } = server.address();
+
+  try {
+    return await callback(`http://127.0.0.1:${port}`);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+}
 
 describe('deal triage persistence', () => {
   test('schema creates deal_triage with new status defaults', () => {
@@ -194,5 +207,77 @@ describe('deal triage ranking', () => {
     assert.equal(hidden.opportunities.some((item) => item.property.externalId === 'rejected-deal'), false);
     assert.equal(shown.opportunities.some((item) => item.property.externalId === 'rejected-deal'), true);
     assert.equal(hidden.summary.hiddenRejected, 1);
+  });
+});
+
+describe('deal triage routes', () => {
+  test('GET /api/triage returns ranked opportunities', async () => {
+    const db = memoryDb();
+    seedProperty(db, {
+      externalId: 'route-deal',
+      priceEur: 80000,
+      areaSqm: 80,
+      condition: 'needs_rehab'
+    });
+    seedProperty(db, {
+      externalId: 'route-comp',
+      priceEur: 120000,
+      areaSqm: 80,
+      condition: 'fully_renovated'
+    });
+    const app = createApp({ database: db });
+
+    await withServer(app, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/triage?limit=10`);
+      assert.equal(response.status, 200);
+      const json = await response.json();
+
+      assert.ok(Array.isArray(json.opportunities));
+      assert.equal(json.opportunities[0].property.externalId, 'route-deal');
+      assert.ok(json.opportunities[0].signals.length > 0);
+    });
+  });
+
+  test('PUT /api/triage/:propertyId validates and persists triage updates', async () => {
+    const db = memoryDb();
+    const property = seedProperty(db, { externalId: 'route-update' });
+    const app = createApp({ database: db });
+
+    await withServer(app, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/triage/${property.id}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ status: 'visited', note: 'Saw it on Sunday' })
+      });
+      assert.equal(response.status, 200);
+      const json = await response.json();
+
+      assert.equal(json.triage.propertyId, property.id);
+      assert.equal(json.triage.status, 'visited');
+      assert.equal(json.triage.note, 'Saw it on Sunday');
+    });
+  });
+
+  test('PUT /api/triage/:propertyId returns 400 for invalid status and 404 for missing property', async () => {
+    const db = memoryDb();
+    const property = seedProperty(db, { externalId: 'route-invalid' });
+    const app = createApp({ database: db });
+
+    await withServer(app, async (baseUrl) => {
+      const invalid = await fetch(`${baseUrl}/api/triage/${property.id}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ status: 'maybe' })
+      });
+      assert.equal(invalid.status, 400);
+      assert.match((await invalid.json()).error, /Invalid triage status/);
+
+      const missing = await fetch(`${baseUrl}/api/triage/999999`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ status: 'watching' })
+      });
+      assert.equal(missing.status, 404);
+    });
   });
 });
