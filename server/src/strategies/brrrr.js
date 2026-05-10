@@ -1,17 +1,18 @@
-import { baseResult, averagePricePerSqm, estimatedMonthlyRent, monthlyNoi, propertyArea, propertyPrice, rentalLeveragedMetrics } from './shared.js';
+import { baseResult, averagePricePerSqm, estimatedMonthlyRent, monthlyNoi, propertyArea, propertyPrice, rentalLeveragedMetrics, transactionCosts } from './shared.js';
 
 export function analyze(property, { database, settings }) {
   const price = propertyPrice(property);
   const area = propertyArea(property);
-  const rehabCost = area * 300;
+  const rehabCost = area * Number(settings.general?.rehabCostPerSqm ?? 300);
+  const transaction = transactionCosts(property, settings);
   const arv = Math.max(averagePricePerSqm(property, database) * area, price * 1.15);
-  const totalInvestment = price + rehabCost;
+  const totalInvestment = price + rehabCost + transaction;
   const monthlyRent = estimatedMonthlyRent({ ...property, price_eur: arv }, settings);
   const noi = monthlyNoi(property, settings, monthlyRent);
   const refinanceLoan = arv * (Number(settings.leverage.ltvPct) / 100);
   const cashLeftInDeal = Math.max(totalInvestment - refinanceLoan, 0);
   const leveragedMetrics = {
-    ...rentalLeveragedMetrics({ ...property, price_eur: arv }, settings, noi),
+    ...rentalLeveragedMetrics({ ...property, price_eur: arv }, settings, noi, { transactionCosts: transaction }),
     refinanceLoan,
     cashLeftInDeal,
     refinanceCoveragePct: totalInvestment > 0 ? (refinanceLoan / totalInvestment) * 100 : 0
@@ -26,6 +27,7 @@ export function analyze(property, { database, settings }) {
     property,
     {
       purchasePrice: price,
+      transactionCosts: transaction,
       rehabCost,
       totalInvestment,
       arv,

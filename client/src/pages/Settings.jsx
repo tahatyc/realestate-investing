@@ -50,6 +50,8 @@ export default function Settings() {
       <Panel title="General Assumptions">
         <Field labelKey="targetGrossYieldPct" value={form.general.targetGrossYieldPct} onChange={(value) => patch('general', 'targetGrossYieldPct', value)} />
         <Field labelKey="targetNetYieldPct" value={form.general.targetNetYieldPct} onChange={(value) => patch('general', 'targetNetYieldPct', value)} />
+        <Field labelKey="rehabCostPerSqm" value={form.general.rehabCostPerSqm} onChange={(value) => patch('general', 'rehabCostPerSqm', value)} />
+        <Field labelKey="transactionCostPct" value={form.general.transactionCostPct} onChange={(value) => patch('general', 'transactionCostPct', value)} />
         <Field labelKey="vacancyPct" value={form.general.vacancyPct} onChange={(value) => patch('general', 'vacancyPct', value)} />
         <Field labelKey="managementFeePct" value={form.general.managementFeePct} onChange={(value) => patch('general', 'managementFeePct', value)} />
       </Panel>

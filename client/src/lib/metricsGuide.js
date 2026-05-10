@@ -39,8 +39,13 @@ export const systemGuides = [
     id: 'settings',
     title: 'Settings and assumptions',
     summary:
-      'Settings are global assumptions used by every strategy calculation. Changing rental yield targets, expenses, leverage, Airbnb assumptions, or health thresholds changes future API results immediately.',
+      'Settings are global assumptions used by every strategy calculation. Changing transaction costs, rental yield targets, expenses, leverage, Airbnb assumptions, or health thresholds changes future API results immediately.',
     formulas: [
+      {
+        label: 'Transaction costs',
+        formula: 'price * transactionCostPct / 100',
+        detail: 'Buyer-side notary and local transaction costs are included in every strategy.'
+      },
       {
         label: 'Estimated monthly rent',
         formula: 'price * targetGrossYieldPct / 100 / 12',
@@ -72,7 +77,12 @@ export const systemGuides = [
       {
         label: 'Down payment',
         formula: 'price * downPaymentPct / 100',
-        detail: 'The cash paid upfront is used as invested cash for many leveraged return calculations.'
+        detail: 'The cash paid upfront is combined with transaction costs for leveraged cash invested.'
+      },
+      {
+        label: 'Cash invested',
+        formula: 'downPayment + transactionCosts',
+        detail: 'Buyer transaction costs are paid upfront, so they reduce cash-on-cash returns.'
       },
       {
         label: 'Origination fee',
@@ -195,8 +205,11 @@ const strategyGuideById = {
     id: 'buy-in-green',
     summary:
       'Finds new-build or near-finished properties where the expected finished value is higher than the current asking price.',
-    inputs: ['price', 'areaSqm', 'pricePerSqm', 'constructionStage', 'zone', 'mortgageRate', 'ltvPct', 'downPaymentPct', 'originationFeePct'],
+    inputs: ['price', 'areaSqm', 'pricePerSqm', 'constructionStage', 'zone', 'transactionCostPct', 'mortgageRate', 'ltvPct', 'downPaymentPct', 'originationFeePct'],
     cashMetrics: [
+      'purchasePrice',
+      'transactionCosts',
+      'totalInvestment',
       'averageFinishedPricePerSqm',
       'futureValue',
       'potentialProfit',
@@ -206,6 +219,8 @@ const strategyGuideById = {
     leveragedMetrics: [
       'loanAmount',
       'downPayment',
+      'transactionCosts',
+      'cashInvested',
       'interestCost',
       'originationFee',
       'leveragedProfit',
@@ -216,6 +231,7 @@ const strategyGuideById = {
       'breakEvenRate'
     ],
     metricKeys: [
+      'transactionCosts',
       'appreciationPct',
       'potentialProfit',
       'holdMonths',
@@ -231,13 +247,13 @@ const strategyGuideById = {
       },
       {
         label: 'Potential profit',
-        formula: 'futureValue - price',
-        detail: 'Cash-only upside before financing costs.'
+        formula: 'futureValue - totalInvestment',
+        detail: 'Cash-only upside after purchase price and transaction costs.'
       },
       {
         label: 'Leveraged ROI',
-        formula: '(potentialProfit - interestCost - originationFee) / downPayment * 100',
-        detail: 'Debt amplifies the return by comparing profit with cash down instead of full price.'
+        formula: '(potentialProfit - interestCost - originationFee) / cashInvested * 100',
+        detail: 'Debt amplifies the return by comparing profit with down payment plus transaction costs.'
       }
     ],
     cashScore: 'Potential profit.',
@@ -252,9 +268,22 @@ const strategyGuideById = {
     id: 'brrrr',
     summary:
       'Screens for buy, rehab, rent, refinance, repeat deals where refinance proceeds can recover a meaningful part of total investment.',
-    inputs: ['price', 'areaSqm', 'zone', 'targetGrossYieldPct', 'vacancyPct', 'managementFeePct', 'ltvPct', 'mortgageRate', 'loanTermYears'],
+    inputs: [
+      'price',
+      'areaSqm',
+      'zone',
+      'rehabCostPerSqm',
+      'transactionCostPct',
+      'targetGrossYieldPct',
+      'vacancyPct',
+      'managementFeePct',
+      'ltvPct',
+      'mortgageRate',
+      'loanTermYears'
+    ],
     cashMetrics: [
       'purchasePrice',
+      'transactionCosts',
       'rehabCost',
       'totalInvestment',
       'arv',
@@ -279,8 +308,8 @@ const strategyGuideById = {
     formulas: [
       {
         label: 'Rehab cost',
-        formula: 'area * 300',
-        detail: 'The current model uses a fixed EUR 300 per sqm rehab assumption.'
+        formula: 'area * rehabCostPerSqm',
+        detail: 'The model uses the configured rehab cost per sqm from Settings.'
       },
       {
         label: 'ARV',
@@ -305,12 +334,13 @@ const strategyGuideById = {
     id: 'flip',
     summary:
       'Estimates fix-and-flip upside from resale value, renovation cost, transaction costs, and optional financing carry.',
-    inputs: ['price', 'areaSqm', 'zone', 'mortgageRate', 'ltvPct', 'downPaymentPct', 'originationFeePct'],
-    cashMetrics: ['purchasePrice', 'rehabCost', 'arv', 'transactionCosts', 'profit', 'roiPct', 'annualizedRoiPct'],
+    inputs: ['price', 'areaSqm', 'zone', 'rehabCostPerSqm', 'transactionCostPct', 'mortgageRate', 'ltvPct', 'downPaymentPct', 'originationFeePct'],
+    cashMetrics: ['purchasePrice', 'transactionCosts', 'rehabCost', 'arv', 'profit', 'totalInvestment', 'roiPct', 'annualizedRoiPct'],
     leveragedMetrics: [
       'loanAmount',
       'cashDeployed',
       'downPayment',
+      'transactionCosts',
       'interestCost',
       'originationFee',
       'leveragedProfit',
@@ -325,8 +355,13 @@ const strategyGuideById = {
     formulas: [
       {
         label: 'Rehab cost',
-        formula: 'area * 300',
-        detail: 'The current model uses a fixed EUR 300 per sqm rehab assumption.'
+        formula: 'area * rehabCostPerSqm',
+        detail: 'The model uses the configured rehab cost per sqm from Settings.'
+      },
+      {
+        label: 'Transaction costs',
+        formula: 'price * transactionCostPct / 100',
+        detail: 'The configured transaction cost percentage is applied to the purchase price.'
       },
       {
         label: 'Profit',
@@ -343,16 +378,16 @@ const strategyGuideById = {
     leveragedScore: 'Leveraged ROI.',
     caveats: [
       'ARV uses the greater of neighborhood value and a 12% uplift over current price.',
-      'Transaction costs are modeled as 3% of price.',
-      'The model does not include taxes, contractor delays, or selling time variability.'
+      'Transaction costs use the configured transaction cost percentage from Settings.',
+      'The model does not include contractor delays or selling time variability.'
     ]
   },
   'cash-flow': {
     id: 'cash-flow',
     summary:
       'Ranks traditional long-term rentals by estimated net yield or leveraged cash-on-cash return.',
-    inputs: ['price', 'targetGrossYieldPct', 'vacancyPct', 'managementFeePct', 'mortgageRate', 'loanTermYears', 'annualInsuranceEur'],
-    cashMetrics: ['monthlyRent', 'monthlyNOI', 'grossYieldPct', 'netYieldPct', 'capRatePct', 'paybackYears'],
+    inputs: ['price', 'transactionCostPct', 'targetGrossYieldPct', 'vacancyPct', 'managementFeePct', 'mortgageRate', 'loanTermYears', 'annualInsuranceEur'],
+    cashMetrics: ['purchasePrice', 'transactionCosts', 'totalInvestment', 'monthlyRent', 'monthlyNOI', 'grossYieldPct', 'netYieldPct', 'capRatePct', 'paybackYears'],
     leveragedMetrics: [
       'loanAmount',
       'downPayment',
@@ -369,13 +404,13 @@ const strategyGuideById = {
     formulas: [
       {
         label: 'Gross yield',
-        formula: 'monthlyRent * 12 / price * 100',
-        detail: 'Annual rent before vacancy and management assumptions divided by purchase price.'
+        formula: 'monthlyRent * 12 / totalInvestment * 100',
+        detail: 'Annual rent before vacancy and management assumptions divided by purchase price plus transaction costs.'
       },
       {
         label: 'Net yield',
-        formula: 'monthlyNOI * 12 / price * 100',
-        detail: 'Annual NOI divided by purchase price. Cap rate currently uses the same value.'
+        formula: 'monthlyNOI * 12 / totalInvestment * 100',
+        detail: 'Annual NOI divided by purchase price plus transaction costs. Cap rate currently uses the same value.'
       },
       {
         label: 'Payback years',
@@ -395,8 +430,11 @@ const strategyGuideById = {
     id: 'airbnb',
     summary:
       'Compares short-term rental income potential against traditional long-term rental assumptions.',
-    inputs: ['price', 'dailyRateEur', 'occupancyPct', 'operatingExpensePct', 'targetGrossYieldPct', 'mortgageRate', 'loanTermYears'],
+    inputs: ['price', 'transactionCostPct', 'dailyRateEur', 'occupancyPct', 'operatingExpensePct', 'targetGrossYieldPct', 'mortgageRate', 'loanTermYears'],
     cashMetrics: [
+      'purchasePrice',
+      'transactionCosts',
+      'totalInvestment',
       'monthlyRevenue',
       'operatingExpenses',
       'monthlyNOI',
@@ -447,8 +485,8 @@ const strategyGuideById = {
     id: 'below-market',
     summary:
       'Finds listings priced below estimated neighborhood market value and highlights instant equity signals.',
-    inputs: ['price', 'areaSqm', 'zone', 'firstSeenAt', 'priceHistory', 'ltvPct', 'downPaymentPct'],
-    cashMetrics: ['marketValue', 'discountAmount', 'discountPct', 'daysOnMarket', 'priceDrops'],
+    inputs: ['price', 'areaSqm', 'zone', 'transactionCostPct', 'firstSeenAt', 'priceHistory', 'ltvPct', 'downPaymentPct'],
+    cashMetrics: ['purchasePrice', 'transactionCosts', 'totalInvestment', 'marketValue', 'discountAmount', 'discountPct', 'daysOnMarket', 'priceDrops'],
     leveragedMetrics: [
       'loanAmount',
       'downPayment',
@@ -472,8 +510,8 @@ const strategyGuideById = {
       },
       {
         label: 'Discount',
-        formula: '(marketValue - price) / marketValue * 100',
-        detail: 'Estimated percentage below market value.'
+        formula: '(marketValue - totalInvestment) / marketValue * 100',
+        detail: 'Estimated percentage below market value after transaction costs.'
       },
       {
         label: 'Leveraged score',
@@ -506,6 +544,7 @@ export const metricGlossary = [
     title: 'Core property metrics',
     entries: [
       glossaryEntry('price', 'Asking price used as the base for return and financing calculations.'),
+      glossaryEntry('transactionCosts', 'Estimated buyer notary and local transaction costs.', 'price * transactionCostPct / 100'),
       glossaryEntry('areaSqm', 'Property size in square meters.'),
       glossaryEntry('pricePerSqm', 'Asking price divided by area, used for neighborhood comparisons.'),
       glossaryEntry('marketValue', 'Estimated fair value from neighborhood price per sqm context.'),
@@ -517,8 +556,8 @@ export const metricGlossary = [
     entries: [
       glossaryEntry('monthlyRent', 'Estimated long-term monthly rent from the target gross yield setting.', 'price * targetGrossYieldPct / 100 / 12'),
       glossaryEntry('noi', 'Net operating income after vacancy and management assumptions.', 'monthlyRent * (1 - expensesPct / 100)'),
-      glossaryEntry('grossYieldPct', 'Annual rent divided by purchase price.', 'monthlyRent * 12 / price * 100'),
-      glossaryEntry('netYieldPct', 'Annual NOI divided by purchase price.', 'monthlyNOI * 12 / price * 100'),
+      glossaryEntry('grossYieldPct', 'Annual rent divided by total investment.', 'monthlyRent * 12 / totalInvestment * 100'),
+      glossaryEntry('netYieldPct', 'Annual NOI divided by total investment.', 'monthlyNOI * 12 / totalInvestment * 100'),
       glossaryEntry('paybackYears', 'Estimated years for net yield to recover the investment.', '100 / netYieldPct')
     ]
   },
@@ -527,6 +566,7 @@ export const metricGlossary = [
     entries: [
       glossaryEntry('loanAmount', 'Estimated borrowed principal.', 'price * ltvPct / 100'),
       glossaryEntry('downPayment', 'Cash paid upfront toward the property purchase.', 'price * downPaymentPct / 100'),
+      glossaryEntry('cashInvested', 'Down payment plus transaction costs paid upfront.', 'downPayment + transactionCosts'),
       glossaryEntry('monthlyPayment', 'Fixed amortizing principal-and-interest payment.'),
       glossaryEntry('monthlyCashFlow', 'Income left after operating costs, mortgage payment, and monthly insurance.'),
       glossaryEntry('cocPct', 'Annual cash flow divided by cash invested.', 'monthlyCashFlow * 12 / cashInvested * 100'),

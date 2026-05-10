@@ -11,6 +11,8 @@ function toNested(row) {
       currency: row.currency,
       targetGrossYieldPct: row.target_gross_yield_pct,
       targetNetYieldPct: row.target_net_yield_pct,
+      rehabCostPerSqm: row.rehab_cost_per_sqm,
+      transactionCostPct: row.transaction_cost_pct,
       vacancyPct: row.vacancy_pct,
       managementFeePct: row.management_fee_pct
     },
@@ -43,6 +45,8 @@ const updateMap = {
   'general.currency': 'currency',
   'general.targetGrossYieldPct': 'target_gross_yield_pct',
   'general.targetNetYieldPct': 'target_net_yield_pct',
+  'general.rehabCostPerSqm': 'rehab_cost_per_sqm',
+  'general.transactionCostPct': 'transaction_cost_pct',
   'general.vacancyPct': 'vacancy_pct',
   'general.managementFeePct': 'management_fee_pct',
   'airbnb.occupancyPct': 'airbnb_occupancy_pct',

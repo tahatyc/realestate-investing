@@ -64,6 +64,8 @@ CREATE TABLE IF NOT EXISTS settings (
   currency TEXT NOT NULL DEFAULT 'EUR',
   target_gross_yield_pct REAL NOT NULL DEFAULT 6,
   target_net_yield_pct REAL NOT NULL DEFAULT 4.5,
+  rehab_cost_per_sqm REAL NOT NULL DEFAULT 300,
+  transaction_cost_pct REAL NOT NULL DEFAULT 3,
   vacancy_pct REAL NOT NULL DEFAULT 5,
   management_fee_pct REAL NOT NULL DEFAULT 8,
   airbnb_occupancy_pct REAL NOT NULL DEFAULT 65,

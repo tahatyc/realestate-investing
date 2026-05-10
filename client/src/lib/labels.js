@@ -55,6 +55,10 @@ export const labelMetadata = {
     label: 'Cash flow',
     description: 'Monthly income left after operating costs and debt service. Useful for checking if the deal pays for itself.'
   },
+  cashInvested: {
+    label: 'Cash invested',
+    description: 'Upfront cash in the deal, including down payment and transaction costs. Useful for leveraged return calculations.'
+  },
   cashLeftInDeal: {
     label: 'Cash left in deal',
     description: 'Cash still tied up after refinance. Useful for judging BRRRR capital recycling.'
@@ -130,6 +134,30 @@ export const labelMetadata = {
   healthMode: {
     label: 'Health mode',
     description: 'Shows whether leveraged health checks are active or hidden.'
+  },
+  INSTANT_EQUITY: {
+    label: 'Instant equity',
+    description: 'The estimated below market discount is larger than the down payment.'
+  },
+  LOW_DSCR: {
+    label: 'Low DSCR',
+    description: 'Debt service coverage is below the configured safety threshold.'
+  },
+  NEGATIVE_CASH_FLOW: {
+    label: 'Negative cash flow',
+    description: 'Monthly income is below expenses and debt service.'
+  },
+  RATE_SENSITIVE: {
+    label: 'Rate sensitive',
+    description: 'Cash flow is vulnerable to the configured mortgage rate stress test.'
+  },
+  REFINANCE_VIABLE: {
+    label: 'Refinance viable',
+    description: 'Estimated refinance coverage is high enough to recover a meaningful share of capital.'
+  },
+  STRONG_LEVERAGED_RETURN: {
+    label: 'Strong leveraged return',
+    description: 'Cash-on-cash return clears the green threshold while cash flow stays positive.'
   },
   holdMonths: {
     label: 'Hold period',
@@ -287,6 +315,10 @@ export const labelMetadata = {
     label: 'Rehab cost',
     description: 'Estimated renovation budget. Useful for judging total investment and resale upside.'
   },
+  rehabCostPerSqm: {
+    label: 'Rehab cost per sqm',
+    description: 'Renovation budget multiplier per square meter. Useful for tuning rehab-heavy strategy estimates.'
+  },
   results: {
     label: 'Results',
     description: 'Number of listings matching the current strategy and filters.'
@@ -313,7 +345,11 @@ export const labelMetadata = {
   },
   transactionCosts: {
     label: 'Transaction costs',
-    description: 'Estimated buying and selling costs. Useful for keeping profit estimates realistic.'
+    description: 'Estimated buyer-side notary and local transaction costs. Useful for keeping Bulgarian purchase costs in every strategy.'
+  },
+  transactionCostPct: {
+    label: 'Transaction costs',
+    description: 'Buyer-side notary and local transaction costs as a share of purchase price. Sofia defaults to 3%.'
   },
   vacancyPct: {
     label: 'Vacancy',

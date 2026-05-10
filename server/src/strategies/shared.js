@@ -8,6 +8,10 @@ export function propertyArea(property) {
   return Number(property.area_sqm ?? property.areaSqm ?? 0);
 }
 
+export function transactionCosts(property, settings) {
+  return propertyPrice(property) * (Number(settings.general?.transactionCostPct ?? 3) / 100);
+}
+
 export function propertyPayload(property) {
   return {
     id: property.id,
@@ -51,11 +55,13 @@ export function averagePricePerSqm(property, database) {
   return Number(row?.value || property.price_per_sqm || 0);
 }
 
-export function rentalLeveragedMetrics(property, settings, monthlyNetOperatingIncome) {
+export function rentalLeveragedMetrics(property, settings, monthlyNetOperatingIncome, options = {}) {
   const price = propertyPrice(property);
   const leverage = settings.leverage;
   const principal = loanAmount(price, leverage.ltvPct);
   const cashDown = downPayment(price, leverage.downPaymentPct);
+  const transaction = options.transactionCosts ?? transactionCosts(property, settings);
+  const cashInvested = options.cashInvested ?? cashDown + transaction;
   const payment = monthlyPayment(principal, leverage.mortgageRate, leverage.loanTermYears);
   const insuranceMonthly = Number(leverage.annualInsuranceEur ?? 0) / 12;
   const cashFlow = Number(monthlyNetOperatingIncome) - payment - insuranceMonthly;
@@ -68,10 +74,12 @@ export function rentalLeveragedMetrics(property, settings, monthlyNetOperatingIn
   return {
     loanAmount: principal,
     downPayment: cashDown,
+    transactionCosts: transaction,
+    cashInvested,
     originationFee: originationFee(principal, leverage.originationFeePct),
     monthlyPayment: payment,
     monthlyCashFlow: cashFlow,
-    cocPct: cashDown > 0 ? (cashFlow * 12 / cashDown) * 100 : null,
+    cocPct: cashInvested > 0 ? (cashFlow * 12 / cashInvested) * 100 : null,
     dscr: dscr(monthlyNetOperatingIncome, payment),
     breakEvenRate: breakEven,
     rateSensitivity: rateSensitivity({
@@ -80,7 +88,7 @@ export function rentalLeveragedMetrics(property, settings, monthlyNetOperatingIn
       monthlyNetOperatingIncome: Number(monthlyNetOperatingIncome) - insuranceMonthly,
       currentRatePct: leverage.mortgageRate
     }),
-    leveragedPaybackYears: cashFlow > 0 && cashDown > 0 ? cashDown / (cashFlow * 12) : null
+    leveragedPaybackYears: cashFlow > 0 && cashInvested > 0 ? cashInvested / (cashFlow * 12) : null
   };
 }
 

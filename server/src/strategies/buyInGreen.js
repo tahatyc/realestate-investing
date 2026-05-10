@@ -1,26 +1,32 @@
-import { baseResult, averagePricePerSqm, financingCarryCost, propertyArea, propertyPrice } from './shared.js';
+import { baseResult, averagePricePerSqm, financingCarryCost, propertyArea, propertyPrice, transactionCosts } from './shared.js';
 import { downPayment, loanAmount, originationFee } from '../utils/mortgage.js';
 
 export function analyze(property, { database, settings }) {
   const price = propertyPrice(property);
   const area = propertyArea(property);
+  const transaction = transactionCosts(property, settings);
+  const totalInvestment = price + transaction;
   const averageFinished = Math.max(averagePricePerSqm(property, database), Number(property.price_per_sqm || 0) * 1.15);
   const futureValue = averageFinished * area;
-  const potentialProfit = futureValue - price;
-  const appreciationPct = price > 0 ? (potentialProfit / price) * 100 : 0;
+  const potentialProfit = futureValue - totalInvestment;
+  const appreciationPct = totalInvestment > 0 ? (potentialProfit / totalInvestment) * 100 : 0;
   const stage = property.construction_stage;
   const holdMonths = stage === 'act14' ? 18 : stage === 'act15' ? 8 : 6;
   const principal = loanAmount(price, settings.leverage.ltvPct);
   const cashDown = downPayment(price, settings.leverage.downPaymentPct);
+  const cashInvested = cashDown + transaction;
   const interestCost = financingCarryCost(principal, settings, holdMonths);
   const fee = originationFee(principal, settings.leverage.originationFeePct);
   const leveragedProfit = potentialProfit - interestCost - fee;
-  const leveragedRoiPct = cashDown > 0 ? (leveragedProfit / cashDown) * 100 : null;
+  const leveragedRoiPct = cashInvested > 0 ? (leveragedProfit / cashInvested) * 100 : null;
 
   return baseResult(
     'buy-in-green',
     property,
     {
+      purchasePrice: price,
+      transactionCosts: transaction,
+      totalInvestment,
       averageFinishedPricePerSqm: averageFinished,
       futureValue,
       potentialProfit,
@@ -30,6 +36,8 @@ export function analyze(property, { database, settings }) {
     {
       loanAmount: principal,
       downPayment: cashDown,
+      transactionCosts: transaction,
+      cashInvested,
       interestCost,
       originationFee: fee,
       leveragedProfit,

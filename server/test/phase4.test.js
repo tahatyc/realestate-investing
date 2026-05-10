@@ -127,6 +127,42 @@ describe('Phase 4 strategy engine', () => {
     assert.ok(Math.abs(deal.breakEvenRate - 4) < 0.5);
   });
 
+  test('rehab strategies use configured rehab cost per sqm', () => {
+    const db = memoryDb();
+    const property = seedStrategyData(db);
+    updateSettings({ general: { rehabCostPerSqm: 450 } }, db);
+
+    const results = analyzeProperty(property, { database: db });
+
+    assert.equal(results.brrrr.cashMetrics.rehabCost, 36000);
+    assert.equal(results.flip.cashMetrics.rehabCost, 36000);
+  });
+
+  test('all strategies include configured transaction costs', () => {
+    const db = memoryDb();
+    const property = seedStrategyData(db);
+    updateSettings({ general: { transactionCostPct: 4 } }, db);
+
+    const results = analyzeProperty(property, { database: db });
+
+    for (const [strategy, result] of Object.entries(results)) {
+      assert.equal(result.cashMetrics.transactionCosts, 4000, `${strategy} should include transaction costs`);
+      assert.equal(result.cashMetrics.acquisitionCosts, undefined, `${strategy} should not expose duplicate acquisition costs`);
+    }
+
+    assert.equal(results['cash-flow'].cashMetrics.totalInvestment, 104000);
+    assert.ok(Math.abs(results['cash-flow'].cashMetrics.netYieldPct - 5.019) < 0.01);
+    assert.equal(results.brrrr.cashMetrics.totalInvestment, 128000);
+    assert.equal(results.flip.cashMetrics.totalInvestment, 128000);
+    assert.equal(results['buy-in-green'].cashMetrics.potentialProfit, 28000);
+    assert.equal(results['below-market'].cashMetrics.discountAmount, 28000);
+    assert.equal(results['cash-flow'].leveragedMetrics.cashInvested, 24000);
+    assert.equal(results.airbnb.leveragedMetrics.cashInvested, 24000);
+    assert.equal(results.brrrr.leveragedMetrics.transactionCosts, 4000);
+    assert.equal(results.flip.leveragedMetrics.transactionCosts, 4000);
+    assert.equal(results.flip.leveragedMetrics.acquisitionCosts, undefined);
+  });
+
   test('turning leverage off returns null leveraged metrics and cash-only scores', () => {
     const db = memoryDb();
     seedStrategyData(db);

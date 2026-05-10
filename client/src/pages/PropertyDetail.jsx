@@ -7,7 +7,9 @@ import PriceChart from '../components/PriceChart.jsx';
 import RateSensitivity from '../components/RateSensitivity.jsx';
 import { ErrorState, LoadingState } from '../components/StatusViews.jsx';
 import { useProperty } from '../api/client.js';
-import { formatCashFlow, formatEur, formatPercent, formatSqm } from '../lib/formatters.js';
+import { formatEur, formatPercent, formatSqm } from '../lib/formatters.js';
+import { getLabel } from '../lib/labels.js';
+import { formatMetric } from '../lib/metricFormatters.js';
 import { getMetricValueClass } from '../lib/metricValueStyles.js';
 import { getStrategy } from '../lib/strategies.js';
 
@@ -66,7 +68,7 @@ export default function PropertyDetail() {
             {result.flags?.length ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 {result.flags.map((flag) => (
-                  <span key={flag} className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">{flag}</span>
+                  <span key={flag} className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">{getLabel(flag)}</span>
                 ))}
               </div>
             ) : null}
@@ -107,11 +109,4 @@ function MetricList({ title, metrics }) {
       </dl>
     </div>
   );
-}
-
-function formatMetric(key, value) {
-  if (/pct|rate|roi|yield|ltv/i.test(key)) return formatPercent(value);
-  if (/cash|price|profit|value|rent|payment|cost|fee|equity|loan|arv/i.test(key)) return key === 'monthlyCashFlow' ? formatCashFlow(value) : formatEur(value);
-  if (typeof value === 'number') return value.toFixed(2);
-  return value ?? '-';
 }

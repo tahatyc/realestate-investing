@@ -1,18 +1,18 @@
-import { baseResult, averagePricePerSqm, financingCarryCost, propertyArea, propertyPrice } from './shared.js';
+import { baseResult, averagePricePerSqm, financingCarryCost, propertyArea, propertyPrice, transactionCosts } from './shared.js';
 import { downPayment, loanAmount, originationFee } from '../utils/mortgage.js';
 
 export function analyze(property, { database, settings }) {
   const price = propertyPrice(property);
   const area = propertyArea(property);
-  const rehabCost = area * 300;
+  const rehabCost = area * Number(settings.general?.rehabCostPerSqm ?? 300);
   const arv = Math.max(averagePricePerSqm(property, database) * area, price * 1.12);
-  const transactionCosts = price * 0.03;
-  const profit = arv - price - rehabCost - transactionCosts;
-  const totalInvestment = price + rehabCost + transactionCosts;
+  const transaction = transactionCosts(property, settings);
+  const profit = arv - price - rehabCost - transaction;
+  const totalInvestment = price + rehabCost + transaction;
   const roiPct = totalInvestment > 0 ? (profit / totalInvestment) * 100 : 0;
   const annualizedRoiPct = roiPct * 2;
   const principal = loanAmount(price, settings.leverage.ltvPct);
-  const cashDeployed = downPayment(price, settings.leverage.downPaymentPct) + rehabCost;
+  const cashDeployed = downPayment(price, settings.leverage.downPaymentPct) + rehabCost + transaction;
   const interestCost = financingCarryCost(principal, settings, 6);
   const fee = originationFee(principal, settings.leverage.originationFeePct);
   const leveragedProfit = profit - interestCost - fee;
@@ -21,11 +21,12 @@ export function analyze(property, { database, settings }) {
   return baseResult(
     'flip',
     property,
-    { purchasePrice: price, rehabCost, arv, transactionCosts, profit, roiPct, annualizedRoiPct },
+    { purchasePrice: price, transactionCosts: transaction, rehabCost, arv, profit, totalInvestment, roiPct, annualizedRoiPct },
     {
       loanAmount: principal,
       cashDeployed,
       downPayment: downPayment(price, settings.leverage.downPaymentPct),
+      transactionCosts: transaction,
       interestCost,
       originationFee: fee,
       leveragedProfit,

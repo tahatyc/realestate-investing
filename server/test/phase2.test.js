@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, test } from 'node:test';
+import Database from 'better-sqlite3';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { createDatabase } from '../src/db/connection.js';
 import { upsertProperty, queryProperties, getPropertyById, markInactive } from '../src/db/properties.js';
 import { insertPriceHistory, getPriceHistoryByPropertyId } from '../src/db/priceHistory.js';
@@ -11,6 +15,7 @@ import { breakEvenRate, dscr, monthlyPayment } from '../src/utils/mortgage.js';
 import { evaluate } from '../src/utils/healthFlags.js';
 
 let databases = [];
+let tempDirs = [];
 
 function memoryDb() {
   const db = createDatabase(':memory:');
@@ -23,6 +28,10 @@ afterEach(() => {
     db.close();
   }
   databases = [];
+  for (const dir of tempDirs) {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+  tempDirs = [];
 });
 
 describe('Phase 2 data layer', () => {
@@ -81,14 +90,63 @@ describe('Phase 2 data layer', () => {
     const defaults = getSettings(db);
     assert.equal(defaults.leverage.enabled, true);
     assert.equal(defaults.leverage.ltvPct, 80);
+    assert.equal(defaults.general.rehabCostPerSqm, 300);
+    assert.equal(defaults.general.transactionCostPct, 3);
 
-    const updated = updateSettings({ leverage: { downPaymentPct: 35 } }, db);
+    const updated = updateSettings({ general: { rehabCostPerSqm: 425, transactionCostPct: 2.5 }, leverage: { downPaymentPct: 35 } }, db);
+    assert.equal(updated.general.rehabCostPerSqm, 425);
+    assert.equal(updated.general.transactionCostPct, 2.5);
     assert.equal(updated.leverage.downPaymentPct, 35);
     assert.equal(updated.leverage.ltvPct, 65);
 
     const secondUpdate = updateSettings({ leverage: { ltvPct: 70 } }, db);
     assert.equal(secondUpdate.leverage.downPaymentPct, 30);
     assert.equal(secondUpdate.leverage.ltvPct, 70);
+  });
+
+  test('adds transaction and rehab cost settings to existing databases', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'realestate-settings-'));
+    tempDirs.push(tempDir);
+    const dbPath = path.join(tempDir, 'legacy.db');
+    const legacyDb = new Database(dbPath);
+    legacyDb.exec(`
+      CREATE TABLE settings (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        city TEXT NOT NULL DEFAULT 'Sofia',
+        currency TEXT NOT NULL DEFAULT 'EUR',
+        target_gross_yield_pct REAL NOT NULL DEFAULT 6,
+        target_net_yield_pct REAL NOT NULL DEFAULT 4.5,
+        acquisition_tax_pct REAL NOT NULL DEFAULT 4,
+        vacancy_pct REAL NOT NULL DEFAULT 5,
+        management_fee_pct REAL NOT NULL DEFAULT 8,
+        airbnb_occupancy_pct REAL NOT NULL DEFAULT 65,
+        airbnb_daily_rate_eur REAL NOT NULL DEFAULT 65,
+        airbnb_operating_expense_pct REAL NOT NULL DEFAULT 30,
+        leverage_enabled INTEGER NOT NULL DEFAULT 1,
+        mortgage_rate REAL NOT NULL DEFAULT 3.5,
+        loan_term_years INTEGER NOT NULL DEFAULT 25,
+        down_payment_pct REAL NOT NULL DEFAULT 20,
+        ltv_pct REAL NOT NULL DEFAULT 80,
+        origination_fee_pct REAL NOT NULL DEFAULT 1,
+        annual_insurance_eur REAL NOT NULL DEFAULT 250,
+        flag_coc_green_pct REAL NOT NULL DEFAULT 8,
+        flag_coc_yellow_pct REAL NOT NULL DEFAULT 4,
+        flag_dscr_minimum REAL NOT NULL DEFAULT 1.25,
+        flag_rate_stress_pct REAL NOT NULL DEFAULT 1,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      INSERT INTO settings (id) VALUES (1);
+    `);
+    legacyDb.close();
+
+    const migratedDb = createDatabase(dbPath);
+    databases.push(migratedDb);
+
+    const columns = migratedDb.prepare('PRAGMA table_info(settings)').all().map((column) => column.name);
+    assert.ok(columns.includes('rehab_cost_per_sqm'));
+    assert.ok(columns.includes('transaction_cost_pct'));
+    assert.equal(getSettings(migratedDb).general.rehabCostPerSqm, 300);
+    assert.equal(getSettings(migratedDb).general.transactionCostPct, 4);
   });
 
   test('recomputes neighborhood stats from active properties', () => {

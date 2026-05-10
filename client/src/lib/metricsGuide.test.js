@@ -67,7 +67,8 @@ describe('metrics guide content', () => {
       'fixed amortizing principal-and-interest payment',
       'break-even rate',
       '0% and 20%',
-      'area * 300',
+      'area * rehabCostPerSqm',
+      'price * transactionCostPct / 100',
       'dailyRateEur * 30 * occupancyPct / 100',
       'When leverage is off',
       'score falls back to the cash score'

@@ -1,14 +1,17 @@
-import { baseResult, averagePricePerSqm, estimatedMonthlyRent, monthlyNoi, propertyArea, propertyPrice, rentalLeveragedMetrics } from './shared.js';
+import { baseResult, averagePricePerSqm, estimatedMonthlyRent, monthlyNoi, propertyArea, propertyPrice, rentalLeveragedMetrics, transactionCosts } from './shared.js';
 import { downPayment, loanAmount } from '../utils/mortgage.js';
 
 export function analyze(property, { database, settings }) {
   const price = propertyPrice(property);
   const area = propertyArea(property);
+  const transaction = transactionCosts(property, settings);
+  const totalInvestment = price + transaction;
   const marketValue = Math.max(averagePricePerSqm(property, database) * area, price);
-  const discountAmount = marketValue - price;
+  const discountAmount = marketValue - totalInvestment;
   const discountPct = marketValue > 0 ? discountAmount / marketValue * 100 : 0;
   const principal = loanAmount(price, settings.leverage.ltvPct);
   const cashDown = downPayment(price, settings.leverage.downPaymentPct);
+  const cashInvested = cashDown + transaction;
   const rent = estimatedMonthlyRent(property, settings);
   const noi = monthlyNoi(property, settings, rent);
   const leveragedRental = rentalLeveragedMetrics(property, settings, noi);
@@ -17,14 +20,19 @@ export function analyze(property, { database, settings }) {
     instantEquity: discountAmount,
     discountAmount,
     downPayment: cashDown,
+    transactionCosts: transaction,
+    cashInvested,
     effectiveLtvPct: marketValue > 0 ? principal / marketValue * 100 : null,
-    equityOnCashRatio: cashDown > 0 ? discountAmount / cashDown : null
+    equityOnCashRatio: cashInvested > 0 ? discountAmount / cashInvested : null
   };
 
   return baseResult(
     'below-market',
     property,
     {
+      purchasePrice: price,
+      transactionCosts: transaction,
+      totalInvestment,
       marketValue,
       discountAmount,
       discountPct,

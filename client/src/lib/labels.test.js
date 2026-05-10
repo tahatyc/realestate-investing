@@ -7,6 +7,10 @@ describe('label metadata helpers', () => {
     assert.equal(getLabelMeta('cocPct').label, 'Cash-on-cash return');
     assert.match(getLabelMeta('cocPct').description, /cash invested/i);
     assert.equal(getLabelMeta('pricePerSqm').label, 'Price per sqm');
+    assert.equal(getLabelMeta('rehabCostPerSqm').label, 'Rehab cost per sqm');
+    assert.match(getLabelMeta('rehabCostPerSqm').description, /renovation budget/i);
+    assert.equal(getLabelMeta('transactionCostPct').label, 'Transaction costs');
+    assert.match(getLabelMeta('transactionCosts').description, /notary/i);
   });
 
   test('humanizes camelCase, snake_case, and kebab-case fallbacks', () => {
@@ -29,12 +33,23 @@ describe('label metadata helpers', () => {
     });
   });
 
+  test('returns readable labels and descriptions for backend health flags', () => {
+    assert.equal(getLabelMeta('INSTANT_EQUITY').label, 'Instant equity');
+    assert.match(getLabelMeta('INSTANT_EQUITY').description, /below market/i);
+    assert.equal(getLabelMeta('NEGATIVE_CASH_FLOW').label, 'Negative cash flow');
+    assert.equal(getLabelMeta('LOW_DSCR').label, 'Low DSCR');
+    assert.equal(getLabelMeta('RATE_SENSITIVE').label, 'Rate sensitive');
+    assert.equal(getLabelMeta('STRONG_LEVERAGED_RETURN').label, 'Strong leveraged return');
+    assert.equal(getLabelMeta('REFINANCE_VIABLE').label, 'Refinance viable');
+  });
+
   test('covers the strategy metric keys shown on detail pages', () => {
     for (const key of [
       'appreciationPct',
       'arv',
       'breakEvenRate',
       'cashDeployed',
+      'cashInvested',
       'cashLeftInDeal',
       'cocPct',
       'daysOnMarket',
