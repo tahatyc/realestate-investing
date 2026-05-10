@@ -7,7 +7,9 @@ import {
   getTriageMap,
   upsertTriage
 } from '../src/db/dealTriage.js';
+import { insertPriceHistory } from '../src/db/priceHistory.js';
 import { upsertProperty } from '../src/db/properties.js';
+import { listDealTriageOpportunities } from '../src/triage/dealTriage.js';
 
 let databases = [];
 
@@ -111,5 +113,86 @@ describe('deal triage persistence', () => {
       /Invalid triage status: maybe/
     );
     assert.equal(getTriageByPropertyId(property.id, db), null);
+  });
+});
+
+describe('deal triage ranking', () => {
+  test('ranks discounted and price-dropped candidates above weak listings', () => {
+    const db = memoryDb();
+    const strong = seedProperty(db, {
+      externalId: 'strong-deal',
+      title: 'Discounted apartment',
+      priceEur: 80000,
+      areaSqm: 80,
+      condition: 'needs_rehab',
+      description: 'Needs renovation'
+    });
+    seedProperty(db, {
+      externalId: 'renovated-comp',
+      priceEur: 120000,
+      areaSqm: 80,
+      condition: 'fully_renovated'
+    });
+    seedProperty(db, {
+      externalId: 'weak-deal',
+      title: 'Expensive apartment',
+      priceEur: 130000,
+      areaSqm: 80,
+      condition: 'fully_renovated'
+    });
+
+    insertPriceHistory({ propertyId: strong.id, priceEur: 90000 }, db);
+    insertPriceHistory({ propertyId: strong.id, priceEur: 80000 }, db);
+
+    const response = listDealTriageOpportunities({ limit: 10 }, db);
+
+    assert.ok(response.opportunities.length >= 1);
+    assert.equal(response.opportunities[0].property.externalId, 'strong-deal');
+    assert.equal(response.opportunities[0].triage.status, 'new');
+    assert.ok(response.opportunities[0].rankScore > 0);
+    assert.ok(response.opportunities[0].signals.some((signal) => signal.type === 'discount'));
+    assert.ok(response.opportunities[0].signals.some((signal) => signal.type === 'price_drop'));
+  });
+
+  test('keeps non-new triage entries even when rank score is zero', () => {
+    const db = memoryDb();
+    const property = seedProperty(db, {
+      externalId: 'manual-watch',
+      priceEur: 120000,
+      areaSqm: 80,
+      condition: 'fully_renovated'
+    });
+    upsertTriage(property.id, { status: 'watching', note: 'Manual follow-up' }, db);
+
+    const response = listDealTriageOpportunities({ limit: 10 }, db);
+    const found = response.opportunities.find((item) => item.property.externalId === 'manual-watch');
+
+    assert.ok(found);
+    assert.equal(found.triage.status, 'watching');
+    assert.equal(found.triage.note, 'Manual follow-up');
+  });
+
+  test('hides rejected entries by default and includes them when requested', () => {
+    const db = memoryDb();
+    const property = seedProperty(db, {
+      externalId: 'rejected-deal',
+      priceEur: 80000,
+      areaSqm: 80,
+      condition: 'needs_rehab'
+    });
+    seedProperty(db, {
+      externalId: 'rejected-comp',
+      priceEur: 120000,
+      areaSqm: 80,
+      condition: 'fully_renovated'
+    });
+    upsertTriage(property.id, { status: 'rejected', rejectedReason: 'Bad building' }, db);
+
+    const hidden = listDealTriageOpportunities({ limit: 10 }, db);
+    const shown = listDealTriageOpportunities({ includeRejected: true, limit: 10 }, db);
+
+    assert.equal(hidden.opportunities.some((item) => item.property.externalId === 'rejected-deal'), false);
+    assert.equal(shown.opportunities.some((item) => item.property.externalId === 'rejected-deal'), true);
+    assert.equal(hidden.summary.hiddenRejected, 1);
   });
 });
