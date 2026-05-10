@@ -44,6 +44,15 @@ CREATE TABLE IF NOT EXISTS price_history (
 
 CREATE INDEX IF NOT EXISTS idx_price_history_property ON price_history(property_id);
 
+CREATE TABLE IF NOT EXISTS deal_triage (
+  property_id INTEGER PRIMARY KEY,
+  status TEXT NOT NULL DEFAULT 'new',
+  note TEXT,
+  rejected_reason TEXT,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS scraping_runs (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   status TEXT NOT NULL DEFAULT 'pending',
