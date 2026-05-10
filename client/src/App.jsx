@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import Layout from './components/Layout.jsx';
+import DealTriage from './pages/DealTriage.jsx';
 import Overview from './pages/Overview.jsx';
 import StrategyView from './pages/StrategyView.jsx';
 import PropertyDetail from './pages/PropertyDetail.jsx';
@@ -12,6 +13,7 @@ export default function App() {
     <Layout>
       <Routes>
         <Route path="/" element={<Overview />} />
+        <Route path="/triage" element={<DealTriage />} />
         <Route path="/metrics-guide" element={<MetricsGuide />} />
         <Route path="/strategy/:name" element={<StrategyView />} />
         <Route path="/property/:id" element={<PropertyDetail />} />
