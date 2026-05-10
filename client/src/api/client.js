@@ -25,6 +25,14 @@ export function buildSettingsUpdate(updates) {
   return payload;
 }
 
+export function buildTriageUpdate(updates) {
+  return {
+    status: updates.status,
+    note: updates.note ?? '',
+    rejectedReason: updates.rejectedReason ?? ''
+  };
+}
+
 async function getJson(path) {
   const response = await api.get(path);
   return response.data;
@@ -46,6 +54,26 @@ export function useProperty(id) {
     queryKey: ['property', id],
     queryFn: () => getJson(`/properties/${id}`),
     enabled: Boolean(id)
+  });
+}
+
+export function useDealTriage(filters = {}) {
+  return useQuery({
+    queryKey: ['deal-triage', filters],
+    queryFn: () => getJson(`/triage${buildQueryString(filters)}`)
+  });
+}
+
+export function useUpdateDealTriage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ propertyId, updates }) => {
+      const response = await api.put(`/triage/${propertyId}`, buildTriageUpdate(updates));
+      return response.data.triage;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['deal-triage'] });
+    }
   });
 }
 

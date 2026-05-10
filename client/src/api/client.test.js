@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { buildQueryString, buildSettingsUpdate } from './client.js';
+import { buildQueryString, buildSettingsUpdate, buildTriageUpdate } from './client.js';
 
 describe('client API helpers', () => {
   test('builds clean query strings without empty filters', () => {
@@ -17,5 +17,20 @@ describe('client API helpers', () => {
     assert.deepEqual(buildSettingsUpdate({ leverage: { ltvPct: 70 } }), {
       leverage: { ltvPct: 70, downPaymentPct: 30 }
     });
+  });
+
+  test('normalizes triage update payloads', () => {
+    assert.deepEqual(
+      buildTriageUpdate({
+        status: 'watching',
+        note: null,
+        rejectedReason: undefined
+      }),
+      {
+        status: 'watching',
+        note: '',
+        rejectedReason: ''
+      }
+    );
   });
 });
