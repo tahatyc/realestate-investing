@@ -90,7 +90,7 @@ export function analyzeStrategy(name, options = {}) {
   const settings = options.settings ?? getSettings(database);
   const limit = Math.min(Number(options.limit) || 50, 250);
   const offset = Number(options.offset) || 0;
-  const properties = queryProperties({ ...options.filters, limit: 10000 }, database);
+  const properties = queryProperties({ ...options.filters, listingPurpose: 'sale', limit: 10000 }, database);
   let results = properties
     .map((property) => decorateResult(analyzer(property, { database, settings }), settings))
     .filter((result) => result.applicable !== false);

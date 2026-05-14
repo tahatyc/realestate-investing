@@ -16,6 +16,8 @@ export function propertyPayload(property) {
   return {
     id: property.id,
     externalId: property.external_id,
+    listingPurpose: property.listing_purpose,
+    category: property.category,
     title: property.title,
     url: property.url,
     neighborhood: property.neighborhood,

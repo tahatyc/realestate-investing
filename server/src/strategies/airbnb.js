@@ -1,13 +1,15 @@
-import { baseResult, estimatedMonthlyRent, monthlyNoi, propertyPrice, rentalLeveragedMetrics, transactionCosts } from './shared.js';
+import { estimateMonthlyRentFromComps } from './rentalComps.js';
+import { baseResult, monthlyNoi, propertyPrice, rentalLeveragedMetrics, transactionCosts } from './shared.js';
 
-export function analyze(property, { settings }) {
+export function analyze(property, { database, settings }) {
   const price = propertyPrice(property);
   const transaction = transactionCosts(property, settings);
   const totalInvestment = price + transaction;
   const revenue = Number(settings.airbnb.dailyRateEur ?? 65) * 30 * (Number(settings.airbnb.occupancyPct ?? 65) / 100);
   const operatingExpenses = revenue * (Number(settings.airbnb.operatingExpensePct ?? 30) / 100);
   const noi = revenue - operatingExpenses;
-  const longTermNoi = monthlyNoi(property, settings, estimatedMonthlyRent(property, settings));
+  const longTermRentEstimate = estimateMonthlyRentFromComps(property, { database, settings });
+  const longTermNoi = monthlyNoi(property, settings, longTermRentEstimate.monthlyRent);
   const leveragedMetrics = rentalLeveragedMetrics(property, settings, noi);
   const netYieldPct = totalInvestment > 0 ? (noi * 12 / totalInvestment) * 100 : 0;
 
@@ -22,6 +24,7 @@ export function analyze(property, { settings }) {
       operatingExpenses,
       monthlyNOI: noi,
       netYieldPct,
+      longTermRentEstimate,
       longTermMonthlyNOI: longTermNoi,
       longTermComparison: longTermNoi > 0 ? noi / longTermNoi : null
     },

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { afterEach, describe, test } from 'node:test';
 import { createDatabase } from '../src/db/connection.js';
 import { upsertProperty } from '../src/db/properties.js';
+import { analyzeStrategy } from '../src/strategies/index.js';
 import { estimateMonthlyRentFromComps } from '../src/strategies/rentalComps.js';
 
 let databases = [];
@@ -14,7 +15,30 @@ function memoryDb() {
 
 const settings = {
   general: {
-    targetGrossYieldPct: 6
+    targetGrossYieldPct: 6,
+    transactionCostPct: 3,
+    vacancyPct: 5,
+    managementFeePct: 8
+  },
+  leverage: {
+    enabled: true,
+    ltvPct: 80,
+    downPaymentPct: 20,
+    mortgageRate: 3.5,
+    loanTermYears: 25,
+    originationFeePct: 1,
+    annualInsuranceEur: 250
+  },
+  flags: {
+    cocGreenPct: 8,
+    cocYellowPct: 4,
+    dscrMinimum: 1.25,
+    rateStressPct: 1
+  },
+  airbnb: {
+    dailyRateEur: 65,
+    occupancyPct: 65,
+    operatingExpensePct: 30
   }
 };
 
@@ -123,5 +147,67 @@ describe('rental comp estimator', () => {
       sampleSize: 0,
       fallback: true
     });
+  });
+
+  test('cash flow and airbnb strategies use rental comp metadata', () => {
+    const db = memoryDb();
+    upsertProperty({
+      externalId: 'sale-strategy',
+      listingPurpose: 'sale',
+      category: 'dvustaen',
+      neighborhood: 'Mladost 1',
+      zone: 'Mladost',
+      type: '2-bedroom',
+      rooms: 2,
+      priceEur: 100000,
+      areaSqm: 70
+    }, db);
+    upsertProperty({
+      externalId: 'rent-hidden',
+      listingPurpose: 'rent',
+      category: 'dvustaen',
+      neighborhood: 'Mladost 1',
+      zone: 'Mladost',
+      type: '2-bedroom',
+      rooms: 2,
+      priceEur: 700,
+      areaSqm: 70
+    }, db);
+    upsertProperty({
+      externalId: 'rent-hidden-2',
+      listingPurpose: 'rent',
+      category: 'dvustaen',
+      neighborhood: 'Mladost 1',
+      zone: 'Mladost',
+      type: '2-bedroom',
+      rooms: 2,
+      priceEur: 800,
+      areaSqm: 80
+    }, db);
+    upsertProperty({
+      externalId: 'rent-hidden-3',
+      listingPurpose: 'rent',
+      category: 'dvustaen',
+      neighborhood: 'Mladost 1',
+      zone: 'Mladost',
+      type: '2-bedroom',
+      rooms: 2,
+      priceEur: 600,
+      areaSqm: 60
+    }, db);
+
+    const cashFlow = analyzeStrategy('cash-flow', { database: db, settings, limit: 10 });
+    const airbnb = analyzeStrategy('airbnb', { database: db, settings, limit: 10 });
+
+    assert.equal(cashFlow.summary.total, 1);
+    assert.equal(cashFlow.results[0].cashMetrics.monthlyRent, 700);
+    assert.deepEqual(cashFlow.results[0].cashMetrics.rentEstimate, {
+      monthlyRent: 700,
+      source: 'neighborhood_comps',
+      sampleSize: 3,
+      fallback: false
+    });
+    assert.equal(airbnb.summary.total, 1);
+    assert.equal(airbnb.results[0].cashMetrics.longTermRentEstimate.source, 'neighborhood_comps');
   });
 });

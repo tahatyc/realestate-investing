@@ -1,10 +1,12 @@
-import { baseResult, estimatedMonthlyRent, monthlyNoi, propertyPrice, rentalLeveragedMetrics, transactionCosts } from './shared.js';
+import { estimateMonthlyRentFromComps } from './rentalComps.js';
+import { baseResult, monthlyNoi, propertyPrice, rentalLeveragedMetrics, transactionCosts } from './shared.js';
 
-export function analyze(property, { settings }) {
+export function analyze(property, { database, settings }) {
   const price = propertyPrice(property);
   const transaction = transactionCosts(property, settings);
   const totalInvestment = price + transaction;
-  const monthlyRent = estimatedMonthlyRent(property, settings);
+  const rentEstimate = estimateMonthlyRentFromComps(property, { database, settings });
+  const monthlyRent = rentEstimate.monthlyRent;
   const noi = monthlyNoi(property, settings, monthlyRent);
   const grossYieldPct = totalInvestment > 0 ? (monthlyRent * 12 / totalInvestment) * 100 : 0;
   const netYieldPct = totalInvestment > 0 ? (noi * 12 / totalInvestment) * 100 : 0;
@@ -18,6 +20,7 @@ export function analyze(property, { settings }) {
       transactionCosts: transaction,
       totalInvestment,
       monthlyRent,
+      rentEstimate,
       monthlyNOI: noi,
       grossYieldPct,
       netYieldPct,
