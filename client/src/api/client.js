@@ -33,6 +33,23 @@ export function buildTriageUpdate(updates) {
   };
 }
 
+export function buildScrapeRequest(mode = 'default', includeRentals = true) {
+  if (mode === 'full') {
+    return {
+      includeSales: true,
+      includeRentals,
+      fullCrawl: true
+    };
+  }
+
+  return {
+    includeSales: true,
+    includeRentals,
+    maxPagesPerCategory: mode === 'deep' ? 10 : 5,
+    fullCrawl: false
+  };
+}
+
 async function getJson(path) {
   const response = await api.get(path);
   return response.data;

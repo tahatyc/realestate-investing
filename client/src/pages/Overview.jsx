@@ -35,10 +35,15 @@ export default function Overview() {
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <MetricCard labelKey="activeListings" value={formatNumber(overview.data.totalListings)} />
+      <div className="grid gap-3 md:grid-cols-5">
+        <MetricCard labelKey="activeSaleListings" value={formatNumber(overview.data.activeSaleListings ?? overview.data.totalListings)} />
+        <MetricCard labelKey="activeRentalComps" value={formatNumber(overview.data.activeRentalComps ?? 0)} />
         <MetricCard labelKey="mortgageRate" value={formatPercent(leverage.mortgageRate)} detail={`${leverage.loanTermYears} years · ${formatPercent(leverage.ltvPct, 0)} LTV`} />
-        <MetricCard labelKey="lastScrape" value={overview.data.lastScrape?.status ?? 'none'} detail={formatDate(overview.data.lastScrape?.started_at)} />
+        <MetricCard
+          labelKey="lastScrape"
+          value={overview.data.lastScrape?.status ?? 'none'}
+          detail={`${overview.data.lastScrape?.crawl_mode ?? 'bounded'} · ${formatDate(overview.data.lastScrape?.started_at)}`}
+        />
         <MetricCard labelKey="healthMode" value={leverage.enabled ? 'Leveraged' : 'Cash-only'} detail={leverage.enabled ? 'Traffic lights active' : 'Leveraged columns hidden'} />
       </div>
 

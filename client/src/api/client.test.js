@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { buildQueryString, buildSettingsUpdate, buildTriageUpdate } from './client.js';
+import { buildQueryString, buildScrapeRequest, buildSettingsUpdate, buildTriageUpdate } from './client.js';
 
 describe('client API helpers', () => {
   test('builds clean query strings without empty filters', () => {
@@ -32,5 +32,25 @@ describe('client API helpers', () => {
         rejectedReason: ''
       }
     );
+  });
+
+  test('builds scraper request bodies from compact modes', () => {
+    assert.deepEqual(buildScrapeRequest('default', true), {
+      includeSales: true,
+      includeRentals: true,
+      maxPagesPerCategory: 5,
+      fullCrawl: false
+    });
+    assert.deepEqual(buildScrapeRequest('deep', false), {
+      includeSales: true,
+      includeRentals: false,
+      maxPagesPerCategory: 10,
+      fullCrawl: false
+    });
+    assert.deepEqual(buildScrapeRequest('full', true), {
+      includeSales: true,
+      includeRentals: true,
+      fullCrawl: true
+    });
   });
 });

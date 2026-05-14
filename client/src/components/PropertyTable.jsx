@@ -8,6 +8,19 @@ import MetricLabel from './MetricLabel.jsx';
 import RateSensitivity from './RateSensitivity.jsx';
 import { formatCashFlow, formatEur, formatPercent, formatSqm } from '../lib/formatters.js';
 
+function rentEstimateLabel(row) {
+  const estimate = row.cashMetrics?.rentEstimate ?? row.cashMetrics?.longTermRentEstimate;
+  if (!estimate) {
+    return null;
+  }
+  const labels = {
+    neighborhood_comps: `Neighborhood comps (${estimate.sampleSize})`,
+    zone_comps: `Zone comps (${estimate.sampleSize})`,
+    target_yield_fallback: 'Target-yield fallback'
+  };
+  return labels[estimate.source] ?? null;
+}
+
 export default function PropertyTable({ rows = [], leverageEnabled, currentRate, stressBuffer }) {
   const [sorting, setSorting] = useState([{ id: 'score', desc: true }]);
   const [expanded, setExpanded] = useState({});
@@ -72,6 +85,15 @@ export default function PropertyTable({ rows = [], leverageEnabled, currentRate,
         header: <MetricLabel labelKey="netYieldPct" variant="table" />,
         accessorFn: (row) => row.cashMetrics?.netYieldPct ?? row.cashMetrics?.roiPct ?? row.cashMetrics?.discountPct,
         cell: ({ getValue }) => formatPercent(getValue())
+      },
+      {
+        id: 'rentSource',
+        header: <MetricLabel labelKey="rentSource" variant="table" />,
+        accessorFn: (row) => rentEstimateLabel(row) ?? '',
+        cell: ({ getValue }) => {
+          const value = getValue();
+          return value ? <span className="text-xs text-slate-500">{value}</span> : <span className="text-xs text-slate-400">-</span>;
+        }
       },
       ...(leverageEnabled
         ? [

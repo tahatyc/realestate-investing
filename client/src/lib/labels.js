@@ -15,6 +15,14 @@ export const labelMetadata = {
     label: 'Active listings',
     description: 'Listings currently available in the dataset. Useful for judging market coverage.'
   },
+  activeSaleListings: {
+    label: 'Sale listings',
+    description: 'Active purchase listings from the latest stored imot.bg sale data.'
+  },
+  activeRentalComps: {
+    label: 'Rental comps',
+    description: 'Active rental listings used as market rent comps when enough similar records exist.'
+  },
   annualInsuranceEur: {
     label: 'Annual insurance',
     description: 'Estimated yearly insurance cost used in leveraged cash flow calculations.'
@@ -58,6 +66,10 @@ export const labelMetadata = {
   cashInvested: {
     label: 'Cash invested',
     description: 'Upfront cash in the deal, including down payment and transaction costs. Useful for leveraged return calculations.'
+  },
+  rentSource: {
+    label: 'Rent source',
+    description: 'Shows whether rent-sensitive metrics use neighborhood comps, zone comps, or the target-yield fallback.'
   },
   cashLeftInDeal: {
     label: 'Cash left in deal',
