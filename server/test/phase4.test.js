@@ -5,6 +5,7 @@ import { upsertProperty } from '../src/db/properties.js';
 import { updateSettings } from '../src/db/settings.js';
 import { createApp } from '../src/index.js';
 import { analyzeProperty, analyzeStrategy, strategyNames } from '../src/strategies/index.js';
+import { isBuyInGreenEligible } from '../src/strategies/buyInGreenEligibility.js';
 
 let databases = [];
 
@@ -23,11 +24,11 @@ function seedStrategyData(db) {
       zone: 'Младост',
       type: '2-bedroom',
       condition: 'needs_rehab',
-      constructionStage: 'act15',
-      constructionYear: 2021,
+      constructionStage: null,
+      constructionYear: null,
       priceEur: 100000,
       areaSqm: 80,
-      description: 'Ново строителство, акт 15, за ремонт'
+      description: 'Апартамент на зелено в проект преди акт 14'
     },
     db
   );
@@ -78,6 +79,52 @@ afterEach(() => {
 });
 
 describe('Phase 4 strategy engine', () => {
+  test('buy-in-green eligibility requires explicit pre-Act 14 signals', () => {
+    assert.equal(
+      isBuyInGreenEligible({
+        title: 'Двустаен апартамент на зелено',
+        description: 'Продажба преди акт 14',
+        constructionStage: null
+      }),
+      true
+    );
+    assert.equal(
+      isBuyInGreenEligible({
+        title: 'Апартамент в проект',
+        description: 'Предстоящ строеж',
+        construction_stage: null
+      }),
+      true
+    );
+
+    for (const constructionStage of ['act14', 'act15', 'act16', 'finished']) {
+      assert.equal(
+        isBuyInGreenEligible({
+          title: 'Апартамент на зелено',
+          description: 'Промоционална цена',
+          constructionStage
+        }),
+        false,
+        `${constructionStage} should be excluded`
+      );
+    }
+
+    assert.equal(
+      isBuyInGreenEligible({
+        title: 'Ново строителство с акт 16',
+        description: 'Готов за нанасяне'
+      }),
+      false
+    );
+    assert.equal(
+      isBuyInGreenEligible({
+        title: 'Двустаен апартамент',
+        description: 'Ново строителство'
+      }),
+      false
+    );
+  });
+
   test('registers all strategy names and returns the required result contract', () => {
     const db = memoryDb();
     const property = seedStrategyData(db);
@@ -125,6 +172,46 @@ describe('Phase 4 strategy engine', () => {
     assert.ok(Math.abs(deal.leveragedMetrics.monthlyCashFlow - 13.7) < 0.5);
     assert.ok(Math.abs(deal.rateSensitivity[0].monthlyCashFlow - deal.leveragedMetrics.monthlyCashFlow) < 0.01);
     assert.ok(Math.abs(deal.breakEvenRate - 4) < 0.5);
+  });
+
+  test('buy-in-green excludes late-stage and ambiguous listings from strategy results', () => {
+    const db = memoryDb();
+    const eligible = seedStrategyData(db);
+    const act14 = upsertProperty(
+      {
+        externalId: 'act14',
+        title: 'Апартамент на зелено',
+        zone: 'Младост',
+        constructionStage: 'act14',
+        priceEur: 90000,
+        areaSqm: 70,
+        description: 'Акт 14'
+      },
+      db
+    );
+    upsertProperty(
+      {
+        externalId: 'ambiguous',
+        title: 'Ново строителство',
+        zone: 'Младост',
+        priceEur: 91000,
+        areaSqm: 70,
+        description: 'Без етап'
+      },
+      db
+    );
+
+    const propertyResults = analyzeProperty(act14, { database: db });
+    assert.equal(propertyResults['buy-in-green'].applicable, false);
+    assert.equal(propertyResults['buy-in-green'].health, null);
+    assert.equal(propertyResults['buy-in-green'].score, null);
+
+    const { results } = analyzeStrategy('buy-in-green', { database: db, limit: 10 });
+    assert.deepEqual(
+      results.map((result) => result.property.externalId),
+      [eligible.external_id]
+    );
+    assert.equal(results[0].cashMetrics.holdMonths, 24);
   });
 
   test('rehab strategies use configured rehab cost per sqm', () => {

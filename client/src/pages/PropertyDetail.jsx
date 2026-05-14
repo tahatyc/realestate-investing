@@ -12,6 +12,7 @@ import { getLabel } from '../lib/labels.js';
 import { formatMetric } from '../lib/metricFormatters.js';
 import { getMetricValueClass } from '../lib/metricValueStyles.js';
 import { getStrategy } from '../lib/strategies.js';
+import { isStrategyApplicable, strategyNotApplicableMessage } from './propertyDetailHelpers.js';
 
 export default function PropertyDetail() {
   const { id } = useParams();
@@ -72,17 +73,25 @@ export default function PropertyDetail() {
                 ))}
               </div>
             ) : null}
-            <div className="mt-4 grid gap-4 lg:grid-cols-2">
-              <MetricList title="Cash metrics" metrics={result.cashMetrics} />
-              <MetricList title="Leveraged metrics" metrics={result.leveragedMetrics} />
-            </div>
-            <div className="mt-4">
-              <RateSensitivity
-                rateSensitivity={result.rateSensitivity}
-                breakEvenRate={result.breakEvenRate}
-                currentRate={query.data.leverageSettings?.mortgageRate}
-              />
-            </div>
+            {isStrategyApplicable(result) ? (
+              <>
+                <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                  <MetricList title="Cash metrics" metrics={result.cashMetrics} />
+                  <MetricList title="Leveraged metrics" metrics={result.leveragedMetrics} />
+                </div>
+                <div className="mt-4">
+                  <RateSensitivity
+                    rateSensitivity={result.rateSensitivity}
+                    breakEvenRate={result.breakEvenRate}
+                    currentRate={query.data.leverageSettings?.mortgageRate}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="mt-4 rounded-md bg-slate-50 p-3 text-sm text-slate-500">
+                {strategyNotApplicableMessage(id)}
+              </div>
+            )}
           </div>
         ))}
       </section>

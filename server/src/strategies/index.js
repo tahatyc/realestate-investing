@@ -23,6 +23,18 @@ export function strategyNames() {
 }
 
 function decorateResult(result, settings) {
+  if (result.applicable === false) {
+    return {
+      ...result,
+      leveragedMetrics: null,
+      health: null,
+      flags: [],
+      rateSensitivity: [],
+      breakEvenRate: null,
+      score: null
+    };
+  }
+
   if (!settings.leverage.enabled) {
     return {
       ...result,

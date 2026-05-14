@@ -1,7 +1,22 @@
 import { baseResult, averagePricePerSqm, financingCarryCost, propertyArea, propertyPrice, transactionCosts } from './shared.js';
 import { downPayment, loanAmount, originationFee } from '../utils/mortgage.js';
+import { isBuyInGreenEligible } from './buyInGreenEligibility.js';
+
+const PRE_ACT14_HOLD_MONTHS = 24;
 
 export function analyze(property, { database, settings }) {
+  if (!isBuyInGreenEligible(property)) {
+    return baseResult(
+      'buy-in-green',
+      property,
+      {},
+      null,
+      null,
+      null,
+      { applicable: false }
+    );
+  }
+
   const price = propertyPrice(property);
   const area = propertyArea(property);
   const transaction = transactionCosts(property, settings);
@@ -10,8 +25,7 @@ export function analyze(property, { database, settings }) {
   const futureValue = averageFinished * area;
   const potentialProfit = futureValue - totalInvestment;
   const appreciationPct = totalInvestment > 0 ? (potentialProfit / totalInvestment) * 100 : 0;
-  const stage = property.construction_stage;
-  const holdMonths = stage === 'act14' ? 18 : stage === 'act15' ? 8 : 6;
+  const holdMonths = PRE_ACT14_HOLD_MONTHS;
   const principal = loanAmount(price, settings.leverage.ltvPct);
   const cashDown = downPayment(price, settings.leverage.downPaymentPct);
   const cashInvested = cashDown + transaction;

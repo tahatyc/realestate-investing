@@ -204,7 +204,7 @@ const strategyGuideById = {
   'buy-in-green': {
     id: 'buy-in-green',
     summary:
-      'Finds new-build or near-finished properties where the expected finished value is higher than the current asking price.',
+      'Finds explicit pre-construction before Act 14 listings where the expected finished value is higher than the current asking price. It is not generic new construction and excludes Act 14, Act 15, Act 16, finished, and ambiguous listings.',
     inputs: ['price', 'areaSqm', 'pricePerSqm', 'constructionStage', 'zone', 'transactionCostPct', 'mortgageRate', 'ltvPct', 'downPaymentPct', 'originationFeePct'],
     cashMetrics: [
       'purchasePrice',
@@ -259,7 +259,7 @@ const strategyGuideById = {
     cashScore: 'Potential profit.',
     leveragedScore: 'Leveraged ROI.',
     caveats: [
-      'Hold months are 18 for act 14, 8 for act 15, and 6 for other stages.',
+      'Eligible Buy in Green listings use a 24 months hold period because Act 14 and Act 15 listings are excluded.',
       'The strategy uses a simplified future value estimate and does not model construction delays or closing risk.',
       'DSCR and break-even values are placeholders for health compatibility on this non-rental strategy.'
     ]

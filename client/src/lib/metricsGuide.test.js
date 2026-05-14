@@ -71,7 +71,10 @@ describe('metrics guide content', () => {
       'price * transactionCostPct / 100',
       'dailyRateEur * 30 * occupancyPct / 100',
       'When leverage is off',
-      'score falls back to the cash score'
+      'score falls back to the cash score',
+      'pre-construction before Act 14',
+      '24 months',
+      'not generic new construction'
     ]) {
       assert.match(text, new RegExp(escapeRegExp(phrase), 'i'));
     }
