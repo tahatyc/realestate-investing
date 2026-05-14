@@ -8,6 +8,7 @@ import { decodeWindows1251 } from '../src/scraper/encoding.js';
 import { detectCondition } from '../src/utils/conditionDetector.js';
 import { normalizeNeighborhood, zoneForNeighborhood } from '../src/scraper/neighborhoods.js';
 import { parseDetailPage, parseSearchResults } from '../src/scraper/parser.js';
+import { buildSearchPlan, normalizeScrapeOptions } from '../src/scraper/searchPlan.js';
 import { runScrape } from '../src/scraper/imotbg.js';
 import { createApp } from '../src/index.js';
 
@@ -54,6 +55,59 @@ describe('Phase 3 scraper', () => {
     assert.equal(detectCondition('Апартамент за ремонт, тухла'), 'needs_rehab');
     assert.equal(detectCondition('Луксозно ремонтиран и обзаведен'), 'fully_renovated');
     assert.equal(detectCondition('Ново строителство с акт 16'), 'new');
+  });
+
+  test('normalizes scrape options with conservative defaults', () => {
+    assert.deepEqual(normalizeScrapeOptions({}), {
+      includeSales: true,
+      includeRentals: true,
+      maxPagesPerCategory: 5,
+      fullCrawl: false
+    });
+
+    assert.deepEqual(normalizeScrapeOptions({ includeRentals: false, maxPagesPerCategory: 2 }), {
+      includeSales: true,
+      includeRentals: false,
+      maxPagesPerCategory: 2,
+      fullCrawl: false
+    });
+  });
+
+  test('builds sale and rental search work for every configured category', () => {
+    const plan = buildSearchPlan({
+      baseUrl: 'https://example.test',
+      maxPagesPerCategory: 2
+    });
+
+    assert.equal(plan.length, 20);
+    assert.deepEqual(
+      plan.slice(0, 4).map((item) => ({
+        purpose: item.purpose,
+        category: item.category,
+        page: item.resultPage,
+        fullScope: item.fullScope
+      })),
+      [
+        { purpose: 'sale', category: 'dvustaen', page: 1, fullScope: false },
+        { purpose: 'sale', category: 'dvustaen', page: 2, fullScope: false },
+        { purpose: 'sale', category: 'tristaen', page: 1, fullScope: false },
+        { purpose: 'sale', category: 'tristaen', page: 2, fullScope: false }
+      ]
+    );
+    assert.ok(plan.some((item) => item.purpose === 'rent' && item.category === 'kashta'));
+    assert.ok(plan.every((item) => item.url.startsWith('https://example.test/')));
+  });
+
+  test('builds sale-only plan without slicing categories', () => {
+    const plan = buildSearchPlan({
+      baseUrl: 'https://example.test',
+      includeRentals: false,
+      maxPagesPerCategory: 1
+    });
+
+    assert.equal(plan.length, 5);
+    assert.deepEqual(plan.map((item) => item.category), ['dvustaen', 'tristaen', 'chetiristaen', 'mnogostaen', 'kashta']);
+    assert.ok(plan.every((item) => item.purpose === 'sale'));
   });
 
   test('parses search result cards and detail pages into property data', () => {
