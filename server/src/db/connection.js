@@ -27,6 +27,7 @@ function runSchema(database) {
   database.exec(schema);
   ensurePropertyColumns(database);
   ensureScrapingRunScopesTable(database);
+  ensureScrapingRunColumns(database);
   ensureSettingsColumns(database);
 }
 
@@ -99,6 +100,23 @@ function ensureScrapingRunScopesTable(database) {
     CREATE INDEX IF NOT EXISTS idx_scraping_run_scopes_run ON scraping_run_scopes(run_id);
     CREATE INDEX IF NOT EXISTS idx_scraping_run_scopes_scope ON scraping_run_scopes(listing_purpose, category);
   `);
+}
+
+function ensureScrapingRunColumns(database) {
+  const columns = new Set(database.prepare('PRAGMA table_info(scraping_runs)').all().map((column) => column.name));
+  const additions = {
+    sale_pages_scraped: 'INTEGER NOT NULL DEFAULT 0',
+    rental_pages_scraped: 'INTEGER NOT NULL DEFAULT 0',
+    current_purpose: 'TEXT',
+    current_category: 'TEXT',
+    crawl_mode: "TEXT NOT NULL DEFAULT 'bounded'"
+  };
+
+  for (const [column, definition] of Object.entries(additions)) {
+    if (!columns.has(column)) {
+      database.exec(`ALTER TABLE scraping_runs ADD COLUMN ${column} ${definition}`);
+    }
+  }
 }
 
 function ensureSettingsColumns(database) {

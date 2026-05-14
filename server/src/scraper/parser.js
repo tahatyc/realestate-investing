@@ -92,7 +92,7 @@ function externalIdFrom(card, url) {
   return url || null;
 }
 
-export function parseSearchResults(html, baseUrl = 'https://www.imot.bg') {
+export function parseSearchResults(html, baseUrl = 'https://www.imot.bg', metadata = {}) {
   const $ = cheerio.load(html);
   const cards = $('.listing-card, .offer, .item, tr:has(a[href*="imot.cgi"])').toArray();
 
@@ -127,6 +127,8 @@ export function parseSearchResults(html, baseUrl = 'https://www.imot.bg') {
       return {
         externalId: externalIdFrom(card, url),
         source: 'imot.bg',
+        listingPurpose: metadata.listingPurpose ?? metadata.purpose ?? 'sale',
+        category: metadata.category ?? null,
         url,
         title,
         neighborhood,

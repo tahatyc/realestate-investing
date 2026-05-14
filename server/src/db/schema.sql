@@ -62,6 +62,11 @@ CREATE TABLE IF NOT EXISTS scraping_runs (
   completed_at TEXT,
   pages_total INTEGER NOT NULL DEFAULT 0,
   pages_scraped INTEGER NOT NULL DEFAULT 0,
+  sale_pages_scraped INTEGER NOT NULL DEFAULT 0,
+  rental_pages_scraped INTEGER NOT NULL DEFAULT 0,
+  current_purpose TEXT,
+  current_category TEXT,
+  crawl_mode TEXT NOT NULL DEFAULT 'bounded',
   listings_found INTEGER NOT NULL DEFAULT 0,
   listings_saved INTEGER NOT NULL DEFAULT 0,
   error_message TEXT

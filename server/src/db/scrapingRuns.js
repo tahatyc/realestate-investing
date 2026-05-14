@@ -4,16 +4,23 @@ export function createScrapingRun(values = {}, database = getDb()) {
   const result = database
     .prepare(
       `INSERT INTO scraping_runs (
-        status, pages_total, pages_scraped, listings_found, listings_saved, error_message
+        status, pages_total, pages_scraped, sale_pages_scraped, rental_pages_scraped,
+        current_purpose, current_category, crawl_mode, listings_found, listings_saved, error_message
        )
        VALUES (
-        @status, @pagesTotal, @pagesScraped, @listingsFound, @listingsSaved, @errorMessage
+        @status, @pagesTotal, @pagesScraped, @salePagesScraped, @rentalPagesScraped,
+        @currentPurpose, @currentCategory, @crawlMode, @listingsFound, @listingsSaved, @errorMessage
        )`
     )
     .run({
       status: values.status ?? 'running',
       pagesTotal: values.pagesTotal ?? 0,
       pagesScraped: values.pagesScraped ?? 0,
+      salePagesScraped: values.salePagesScraped ?? 0,
+      rentalPagesScraped: values.rentalPagesScraped ?? 0,
+      currentPurpose: values.currentPurpose ?? null,
+      currentCategory: values.currentCategory ?? null,
+      crawlMode: values.crawlMode ?? 'bounded',
       listingsFound: values.listingsFound ?? 0,
       listingsSaved: values.listingsSaved ?? 0,
       errorMessage: values.errorMessage ?? null
@@ -28,6 +35,11 @@ export function updateScrapingRun(id, values = {}, database = getDb()) {
     completedAt: 'completed_at',
     pagesTotal: 'pages_total',
     pagesScraped: 'pages_scraped',
+    salePagesScraped: 'sale_pages_scraped',
+    rentalPagesScraped: 'rental_pages_scraped',
+    currentPurpose: 'current_purpose',
+    currentCategory: 'current_category',
+    crawlMode: 'crawl_mode',
     listingsFound: 'listings_found',
     listingsSaved: 'listings_saved',
     errorMessage: 'error_message'

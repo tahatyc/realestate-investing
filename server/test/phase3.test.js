@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { afterEach, describe, test } from 'node:test';
 import { createDatabase } from '../src/db/connection.js';
 import { getPriceHistoryByPropertyId } from '../src/db/priceHistory.js';
-import { getPropertyByExternalId, queryProperties } from '../src/db/properties.js';
+import { getPropertyByExternalId, queryProperties, upsertProperty } from '../src/db/properties.js';
 import { getLatestScrapingRun } from '../src/db/scrapingRuns.js';
 import { decodeWindows1251 } from '../src/scraper/encoding.js';
 import { detectCondition } from '../src/utils/conditionDetector.js';
@@ -199,44 +199,87 @@ describe('Phase 3 scraper', () => {
       };
     };
 
-    const first = await runScrape({ database: db, pages: 1, searchUrls: [searchUrl], fetcher, delayMs: 0 });
+    const searchPlan = [{ purpose: 'sale', category: 'dvustaen', resultPage: 1, url: searchUrl, fullScope: true }];
+    const first = await runScrape({ database: db, searchPlan, fetcher, delayMs: 0 });
     assert.equal(first.listingsSaved, 1);
 
     price = '83 000 EUR';
-    const second = await runScrape({ database: db, pages: 1, searchUrls: [searchUrl], fetcher, delayMs: 0 });
+    const second = await runScrape({ database: db, searchPlan, fetcher, delayMs: 0 });
     const property = getPropertyByExternalId('imot-123', db);
     const history = getPriceHistoryByPropertyId(property.id, db);
 
+    assert.equal(property.listing_purpose, 'sale');
+    assert.equal(property.category, 'dvustaen');
     assert.equal(second.priceChanges, 1);
     assert.equal(property.price_eur, 83000);
     assert.deepEqual(history.map((entry) => entry.price_eur), [85000, 83000]);
 
     includeListing = false;
-    await runScrape({ database: db, pages: 1, searchUrls: [searchUrl], fetcher, delayMs: 0 });
+    await runScrape({ database: db, searchPlan, fetcher, delayMs: 0 });
     assert.equal(queryProperties({}, db).length, 0);
     assert.equal(queryProperties({ includeInactive: true }, db)[0].is_active, 0);
   });
 
+  test('bounded scrape does not deactivate listings outside completed scanned scope', async () => {
+    const db = memoryDb();
+    upsertProperty({ externalId: 'sale-a', listingPurpose: 'sale', category: 'dvustaen', priceEur: 100000 }, db);
+    upsertProperty({ externalId: 'sale-b', listingPurpose: 'sale', category: 'tristaen', priceEur: 120000 }, db);
+    upsertProperty({ externalId: 'rent-a', listingPurpose: 'rent', category: 'dvustaen', priceEur: 600 }, db);
+
+    await runScrape({
+      database: db,
+      searchPlan: [{ purpose: 'sale', category: 'dvustaen', resultPage: 1, url: 'https://www.imot.bg/sale-a', fullScope: true }],
+      fetcher: async () => ({ body: '<main></main>' }),
+      delayMs: 0
+    });
+
+    assert.equal(getPropertyByExternalId('sale-a', db).is_active, 0);
+    assert.equal(getPropertyByExternalId('sale-b', db).is_active, 1);
+    assert.equal(getPropertyByExternalId('rent-a', db).is_active, 1);
+  });
+
+  test('bounded partial scopes keep unseen listings active within the same category', async () => {
+    const db = memoryDb();
+    upsertProperty({ externalId: 'sale-a', listingPurpose: 'sale', category: 'dvustaen', priceEur: 100000 }, db);
+
+    await runScrape({
+      database: db,
+      searchPlan: [{ purpose: 'sale', category: 'dvustaen', resultPage: 1, url: 'https://www.imot.bg/sale-a', fullScope: false }],
+      fetcher: async () => ({ body: '<main></main>' }),
+      delayMs: 0
+    });
+
+    assert.equal(getPropertyByExternalId('sale-a', db).is_active, 1);
+  });
+
   test('exposes scraper start, status, and history routes', async () => {
     const db = memoryDb();
+    let receivedOptions = null;
     const app = createApp({
       database: db,
       scraper: {
-        start: async () => runScrape({
-          database: db,
-          pages: 0,
-          searchUrls: [],
-          fetcher: async () => ({ body: '<main></main>' }),
-          delayMs: 0
-        })
+        start: async (options) => {
+          receivedOptions = options;
+          return runScrape({
+            database: db,
+            searchPlan: [],
+            fetcher: async () => ({ body: '<main></main>' }),
+            delayMs: 0
+          });
+        }
       }
     });
 
     await withServer(app, async (baseUrl) => {
-      const start = await fetch(`${baseUrl}/api/scraper/start`, { method: 'POST' });
+      const start = await fetch(`${baseUrl}/api/scraper/start`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ includeRentals: false, maxPagesPerCategory: 2 })
+      });
       assert.equal(start.status, 202);
       const startJson = await start.json();
       assert.equal(startJson.status, 'running');
+      assert.deepEqual(receivedOptions, { includeRentals: false, maxPagesPerCategory: 2 });
 
       await new Promise((resolve) => setTimeout(resolve, 20));
 

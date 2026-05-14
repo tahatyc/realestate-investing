@@ -49,10 +49,15 @@ function toRunResponse(run) {
     completedAt: run.completed_at,
     listingsFound: run.listings_found,
     listingsSaved: run.listings_saved,
+    crawlMode: run.crawl_mode ?? 'bounded',
     progress: {
       currentPage: run.pages_scraped,
       totalPages: run.pages_total,
-      listingsProcessed: run.listings_saved
+      listingsProcessed: run.listings_saved,
+      salePagesScraped: run.sale_pages_scraped ?? 0,
+      rentalPagesScraped: run.rental_pages_scraped ?? 0,
+      currentPurpose: run.current_purpose,
+      currentCategory: run.current_category
     },
     errorMessage: run.error_message
   };
