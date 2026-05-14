@@ -3,6 +3,8 @@ import { getDb } from './connection.js';
 const propertyColumns = [
   'external_id',
   'source',
+  'listing_purpose',
+  'category',
   'url',
   'title',
   'neighborhood',
@@ -24,6 +26,7 @@ const propertyColumns = [
 
 const columnMap = {
   externalId: 'external_id',
+  listingPurpose: 'listing_purpose',
   priceEur: 'price_eur',
   priceBgn: 'price_bgn',
   areaSqm: 'area_sqm',
@@ -47,6 +50,9 @@ function toSnakeRecord(property) {
   if (!record.source) {
     record.source = 'imot.bg';
   }
+  if (!record.listing_purpose) {
+    record.listing_purpose = 'sale';
+  }
 
   if (record.area_sqm && record.price_eur && !record.price_per_sqm) {
     record.price_per_sqm = record.price_eur / record.area_sqm;
@@ -61,6 +67,17 @@ function whereFromFilters(filters) {
 
   if (filters.includeInactive === true) {
     clauses.length = 0;
+  }
+  if (filters.includeAllPurposes !== true) {
+    clauses.push('listing_purpose = @listingPurpose');
+    params.listingPurpose = filters.listingPurpose ?? 'sale';
+  } else if (filters.listingPurpose) {
+    clauses.push('listing_purpose = @listingPurpose');
+    params.listingPurpose = filters.listingPurpose;
+  }
+  if (filters.category) {
+    clauses.push('category = @category');
+    params.category = filters.category;
   }
   if (filters.zone) {
     clauses.push('zone = @zone');
@@ -153,4 +170,35 @@ export function markInactive(id, database = getDb()) {
     .prepare('UPDATE properties SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
     .run(id);
   return result.changes > 0;
+}
+
+export function markInactiveByScope({ listingPurpose, category, seenExternalIds = [] }, database = getDb()) {
+  const params = { listingPurpose, category };
+  const seen = [...seenExternalIds].filter(Boolean);
+
+  if (!listingPurpose || !category) {
+    throw new Error('listingPurpose and category are required for scoped inactive marking');
+  }
+
+  let seenClause = '';
+  if (seen.length) {
+    seenClause = `AND external_id NOT IN (${seen.map((_, index) => `@seen${index}`).join(', ')})`;
+    for (const [index, externalId] of seen.entries()) {
+      params[`seen${index}`] = externalId;
+    }
+  }
+
+  const result = database
+    .prepare(
+      `UPDATE properties
+       SET is_active = 0, updated_at = CURRENT_TIMESTAMP
+       WHERE source = 'imot.bg'
+         AND listing_purpose = @listingPurpose
+         AND category = @category
+         AND is_active = 1
+         ${seenClause}`
+    )
+    .run(params);
+
+  return result.changes;
 }

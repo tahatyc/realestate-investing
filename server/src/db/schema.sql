@@ -2,6 +2,8 @@ CREATE TABLE IF NOT EXISTS properties (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   external_id TEXT NOT NULL UNIQUE,
   source TEXT NOT NULL DEFAULT 'imot.bg',
+  listing_purpose TEXT NOT NULL DEFAULT 'sale',
+  category TEXT,
   url TEXT,
   title TEXT,
   neighborhood TEXT,
@@ -66,6 +68,21 @@ CREATE TABLE IF NOT EXISTS scraping_runs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_scraping_runs_started ON scraping_runs(started_at);
+
+CREATE TABLE IF NOT EXISTS scraping_run_scopes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  run_id INTEGER NOT NULL,
+  listing_purpose TEXT NOT NULL,
+  category TEXT NOT NULL,
+  pages_planned INTEGER NOT NULL,
+  pages_scraped INTEGER NOT NULL DEFAULT 0,
+  full_scope INTEGER NOT NULL DEFAULT 0,
+  completed INTEGER NOT NULL DEFAULT 0,
+  FOREIGN KEY (run_id) REFERENCES scraping_runs(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_scraping_run_scopes_run ON scraping_run_scopes(run_id);
+CREATE INDEX IF NOT EXISTS idx_scraping_run_scopes_scope ON scraping_run_scopes(listing_purpose, category);
 
 CREATE TABLE IF NOT EXISTS settings (
   id INTEGER PRIMARY KEY CHECK (id = 1),
