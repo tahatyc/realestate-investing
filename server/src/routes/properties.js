@@ -55,6 +55,8 @@ export function toPropertyResponse(property) {
     id: property.id,
     externalId: property.external_id,
     source: property.source,
+    listingPurpose: property.listing_purpose,
+    category: property.category,
     url: property.url,
     title: property.title,
     neighborhood: property.neighborhood,

@@ -9,7 +9,12 @@ export function createOverviewRouter({ database } = {}) {
 
   router.get('/', (_req, res) => {
     const settings = getSettings(database);
-    const totalListings = database.prepare('SELECT COUNT(*) AS count FROM properties WHERE is_active = 1').get().count;
+    const activeSaleListings = database
+      .prepare("SELECT COUNT(*) AS count FROM properties WHERE is_active = 1 AND listing_purpose = 'sale'")
+      .get().count;
+    const activeRentalComps = database
+      .prepare("SELECT COUNT(*) AS count FROM properties WHERE is_active = 1 AND listing_purpose = 'rent'")
+      .get().count;
     const neighborhoods = getNeighborhoodStats(database);
     const strategies = {};
 
@@ -18,7 +23,9 @@ export function createOverviewRouter({ database } = {}) {
     }
 
     res.json({
-      totalListings,
+      totalListings: activeSaleListings,
+      activeSaleListings,
+      activeRentalComps,
       lastScrape: getLatestScrapingRun(database),
       leverage: settings.leverage,
       strategies,

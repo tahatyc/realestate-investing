@@ -252,6 +252,22 @@ describe('Phase 3 scraper', () => {
     assert.equal(getPropertyByExternalId('sale-a', db).is_active, 1);
   });
 
+  test('overview reports sale listings and rental comps separately', async () => {
+    const db = memoryDb();
+    upsertProperty({ externalId: 'overview-sale', listingPurpose: 'sale', category: 'dvustaen', priceEur: 100000 }, db);
+    upsertProperty({ externalId: 'overview-rent', listingPurpose: 'rent', category: 'dvustaen', priceEur: 600 }, db);
+    const app = createApp({ database: db });
+
+    await withServer(app, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/overview`);
+      assert.equal(response.status, 200);
+      const json = await response.json();
+      assert.equal(json.totalListings, 1);
+      assert.equal(json.activeSaleListings, 1);
+      assert.equal(json.activeRentalComps, 1);
+    });
+  });
+
   test('exposes scraper start, status, and history routes', async () => {
     const db = memoryDb();
     let receivedOptions = null;
