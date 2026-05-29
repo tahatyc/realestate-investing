@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import { pathToFileURL } from 'node:url';
-import { getDb, initializeDatabase } from './db/connection.js';
+import { initializeDatabase } from './db/connection.js';
 import { createNeighborhoodsRouter } from './routes/neighborhoods.js';
 import { createOverviewRouter } from './routes/overview.js';
 import { createPropertiesRouter } from './routes/properties.js';
@@ -12,7 +12,7 @@ import { createTriageRouter } from './routes/triage.js';
 
 export function createApp({ database, scraper } = {}) {
   const app = express();
-  const activeDatabase = database ?? getDb();
+  const activeDatabase = database ?? null;
 
   app.use(cors());
   app.use(express.json());
@@ -37,14 +37,13 @@ export function createApp({ database, scraper } = {}) {
   return app;
 }
 
-export const app = createApp();
-
 const port = process.env.PORT || 3001;
+const isEntrypoint = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;
 
-if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
-  const database = initializeDatabase();
-  const serverApp = createApp({ database });
-  serverApp.listen(port, () => {
+export const app = isEntrypoint ? createApp({ database: initializeDatabase() }) : null;
+
+if (isEntrypoint) {
+  app.listen(port, () => {
     console.log(`Server listening on http://localhost:${port}`);
   });
 }

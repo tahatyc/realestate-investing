@@ -4,6 +4,7 @@ import Database from 'better-sqlite3';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { setConvexClientForTests } from '../src/convexClient.js';
 import { createDatabase } from '../src/db/connection.js';
 import { upsertProperty, queryProperties, getPropertyById, getPropertyByExternalId, markInactive } from '../src/db/properties.js';
 import { insertPriceHistory, getPriceHistoryByPropertyId } from '../src/db/priceHistory.js';
@@ -18,6 +19,7 @@ import { recomputeNeighborhoodStats } from '../src/db/neighborhoodStats.js';
 import { bgnToEur, eurToBgn } from '../src/utils/currency.js';
 import { breakEvenRate, dscr, monthlyPayment } from '../src/utils/mortgage.js';
 import { evaluate } from '../src/utils/healthFlags.js';
+import { installFakeConvex } from './helpers/fakeConvex.js';
 
 let databases = [];
 let tempDirs = [];
@@ -29,6 +31,7 @@ function memoryDb() {
 }
 
 afterEach(() => {
+  setConvexClientForTests(null);
   for (const db of databases) {
     db.close();
   }
@@ -40,9 +43,9 @@ afterEach(() => {
 });
 
 describe('Phase 2 data layer', () => {
-  test('upserts, queries, reads, and marks properties inactive', () => {
-    const db = memoryDb();
-    const property = upsertProperty(
+  test('upserts, queries, reads, and marks properties inactive', async () => {
+    installFakeConvex();
+    const property = await upsertProperty(
       {
         externalId: 'imot-1',
         title: 'Two room apartment',
@@ -52,105 +55,100 @@ describe('Phase 2 data layer', () => {
         condition: 'good',
         priceEur: 100000,
         areaSqm: 80
-      },
-      db
+      }
     );
 
     assert.equal(property.external_id, 'imot-1');
     assert.equal(Math.round(property.price_per_sqm), 1250);
-    assert.equal(queryProperties({ zone: 'Mladost' }, db).length, 1);
-    assert.equal(getPropertyById(property.id, db).title, 'Two room apartment');
-    assert.equal(markInactive(property.id, db), true);
-    assert.equal(queryProperties({}, db).length, 0);
+    assert.equal((await queryProperties({ zone: 'Mladost' })).length, 1);
+    assert.equal((await getPropertyById(property.id)).title, 'Two room apartment');
+    assert.equal(await markInactive(property.id), true);
+    assert.equal((await queryProperties({})).length, 0);
   });
 
-  test('tracks price history', () => {
-    const db = memoryDb();
-    const property = upsertProperty({ externalId: 'imot-2', priceEur: 90000 }, db);
-    insertPriceHistory({ propertyId: property.id, priceEur: 90000 }, db);
-    insertPriceHistory({ propertyId: property.id, priceEur: 87500 }, db);
+  test('tracks price history', async () => {
+    installFakeConvex();
+    const property = await upsertProperty({ externalId: 'imot-2', priceEur: 90000 });
+    await insertPriceHistory({ propertyId: property.id, priceEur: 90000 });
+    await insertPriceHistory({ propertyId: property.id, priceEur: 87500 });
 
-    const history = getPriceHistoryByPropertyId(property.id, db);
+    const history = await getPriceHistoryByPropertyId(property.id);
     assert.equal(history.length, 2);
     assert.equal(history[1].price_eur, 87500);
   });
 
-  test('stores listing purpose and category and filters sale listings by default', () => {
-    const db = memoryDb();
+  test('stores listing purpose and category and filters sale listings by default', async () => {
+    installFakeConvex();
 
-    upsertProperty(
+    await upsertProperty(
       {
         externalId: 'sale-1',
         listingPurpose: 'sale',
         category: 'dvustaen',
         title: 'Sale apartment',
         priceEur: 100000
-      },
-      db
+      }
     );
-    upsertProperty(
+    await upsertProperty(
       {
         externalId: 'rent-1',
         listingPurpose: 'rent',
         category: 'dvustaen',
         title: 'Rental apartment',
         priceEur: 600
-      },
-      db
+      }
     );
 
-    assert.equal(queryProperties({}, db).length, 1);
-    assert.equal(queryProperties({ listingPurpose: 'sale' }, db).length, 1);
-    assert.equal(queryProperties({ listingPurpose: 'rent' }, db).length, 1);
-    assert.equal(queryProperties({ includeAllPurposes: true }, db).length, 2);
-    assert.equal(getPropertyByExternalId('rent-1', db).listing_purpose, 'rent');
-    assert.equal(getPropertyByExternalId('rent-1', db).category, 'dvustaen');
+    assert.equal((await queryProperties({})).length, 1);
+    assert.equal((await queryProperties({ listingPurpose: 'sale' })).length, 1);
+    assert.equal((await queryProperties({ listingPurpose: 'rent' })).length, 1);
+    assert.equal((await queryProperties({ includeAllPurposes: true })).length, 2);
+    assert.equal((await getPropertyByExternalId('rent-1')).listing_purpose, 'rent');
+    assert.equal((await getPropertyByExternalId('rent-1')).category, 'dvustaen');
   });
 
-  test('handles scraping run lifecycle', () => {
-    const db = memoryDb();
-    const run = createScrapingRun({ pagesTotal: 2 }, db);
-    const updated = updateScrapingRun(run.id, {
+  test('handles scraping run lifecycle', async () => {
+    installFakeConvex();
+    const run = await createScrapingRun({ pagesTotal: 2 });
+    const updated = await updateScrapingRun(run.id, {
       status: 'completed',
       pagesScraped: 2,
       listingsFound: 20,
       listingsSaved: 18
-    }, db);
+    });
 
     assert.equal(updated.status, 'completed');
     assert.equal(updated.completed_at !== null, true);
-    assert.equal(getLatestScrapingRun(db).id, run.id);
+    assert.equal((await getLatestScrapingRun()).id, run.id);
   });
 
-  test('records completed scraping run scopes', () => {
-    const db = memoryDb();
-    const run = createScrapingRun({ pagesTotal: 5 }, db);
-    const scope = createScrapingRunScope(
+  test('records completed scraping run scopes', async () => {
+    installFakeConvex();
+    const run = await createScrapingRun({ pagesTotal: 5 });
+    const scope = await createScrapingRunScope(
       {
         runId: run.id,
         listingPurpose: 'sale',
         category: 'dvustaen',
         pagesPlanned: 5,
         fullScope: false
-      },
-      db
+      }
     );
 
     assert.equal(scope.completed, 0);
 
-    const completed = completeScrapingRunScope(
+    const completed = await completeScrapingRunScope(
       scope.id,
       {
         pagesScraped: 5,
         completed: true
-      },
-      db
+      }
     );
 
     assert.equal(completed.pages_scraped, 5);
     assert.equal(completed.completed, 1);
     assert.deepEqual(
-      getCompletedScrapingRunScopes(run.id, db).map((row) => ({
+      (await getCompletedScrapingRunScopes(run.id)).map((row) => ({
         purpose: row.listing_purpose,
         category: row.category,
         pages: row.pages_scraped
@@ -159,21 +157,21 @@ describe('Phase 2 data layer', () => {
     );
   });
 
-  test('seeds and updates nested settings with LTV/down-payment sync', () => {
-    const db = memoryDb();
-    const defaults = getSettings(db);
+  test('seeds and updates nested settings with LTV/down-payment sync', async () => {
+    installFakeConvex();
+    const defaults = await getSettings();
     assert.equal(defaults.leverage.enabled, true);
     assert.equal(defaults.leverage.ltvPct, 80);
     assert.equal(defaults.general.rehabCostPerSqm, 300);
     assert.equal(defaults.general.transactionCostPct, 3);
 
-    const updated = updateSettings({ general: { rehabCostPerSqm: 425, transactionCostPct: 2.5 }, leverage: { downPaymentPct: 35 } }, db);
+    const updated = await updateSettings({ general: { rehabCostPerSqm: 425, transactionCostPct: 2.5 }, leverage: { downPaymentPct: 35 } });
     assert.equal(updated.general.rehabCostPerSqm, 425);
     assert.equal(updated.general.transactionCostPct, 2.5);
     assert.equal(updated.leverage.downPaymentPct, 35);
     assert.equal(updated.leverage.ltvPct, 65);
 
-    const secondUpdate = updateSettings({ leverage: { ltvPct: 70 } }, db);
+    const secondUpdate = await updateSettings({ leverage: { ltvPct: 70 } });
     assert.equal(secondUpdate.leverage.downPaymentPct, 30);
     assert.equal(secondUpdate.leverage.ltvPct, 70);
   });
@@ -219,8 +217,9 @@ describe('Phase 2 data layer', () => {
     const columns = migratedDb.prepare('PRAGMA table_info(settings)').all().map((column) => column.name);
     assert.ok(columns.includes('rehab_cost_per_sqm'));
     assert.ok(columns.includes('transaction_cost_pct'));
-    assert.equal(getSettings(migratedDb).general.rehabCostPerSqm, 300);
-    assert.equal(getSettings(migratedDb).general.transactionCostPct, 4);
+    const settings = migratedDb.prepare('SELECT rehab_cost_per_sqm, transaction_cost_pct FROM settings WHERE id = 1').get();
+    assert.equal(settings.rehab_cost_per_sqm, 300);
+    assert.equal(settings.transaction_cost_pct, 4);
   });
 
   test('adds listing purpose and category columns to existing databases', () => {
@@ -277,12 +276,12 @@ describe('Phase 2 data layer', () => {
     assert.ok(migratedDb.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'scraping_run_scopes'").get());
   });
 
-  test('recomputes neighborhood stats from active properties', () => {
-    const db = memoryDb();
-    upsertProperty({ externalId: 'a', neighborhood: 'Mladost 1', zone: 'Mladost', priceEur: 100000, areaSqm: 80 }, db);
-    upsertProperty({ externalId: 'b', neighborhood: 'Mladost 1', zone: 'Mladost', priceEur: 120000, areaSqm: 100 }, db);
+  test('recomputes neighborhood stats from active properties', async () => {
+    installFakeConvex();
+    await upsertProperty({ externalId: 'a', neighborhood: 'Mladost 1', zone: 'Mladost', priceEur: 100000, areaSqm: 80 });
+    await upsertProperty({ externalId: 'b', neighborhood: 'Mladost 1', zone: 'Mladost', priceEur: 120000, areaSqm: 100 });
 
-    const stats = recomputeNeighborhoodStats(db);
+    const stats = await recomputeNeighborhoodStats();
     assert.equal(stats.length, 1);
     assert.equal(stats[0].property_count, 2);
     assert.equal(stats[0].avg_price_eur, 110000);

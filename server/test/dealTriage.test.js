@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, test } from 'node:test';
+import { setConvexClientForTests } from '../src/convexClient.js';
 import { createDatabase } from '../src/db/connection.js';
 import {
   ALLOWED_TRIAGE_STATUSES,
@@ -11,6 +12,7 @@ import { insertPriceHistory } from '../src/db/priceHistory.js';
 import { upsertProperty } from '../src/db/properties.js';
 import { createApp } from '../src/index.js';
 import { listDealTriageOpportunities } from '../src/triage/dealTriage.js';
+import { installFakeConvex } from './helpers/fakeConvex.js';
 
 let databases = [];
 
@@ -20,8 +22,8 @@ function memoryDb() {
   return db;
 }
 
-function seedProperty(db, overrides = {}) {
-  return upsertProperty(
+async function seedProperty(overrides = {}) {
+  return await upsertProperty(
     {
       externalId: overrides.externalId ?? 'triage-property-1',
       title: overrides.title ?? 'Two room apartment',
@@ -33,12 +35,12 @@ function seedProperty(db, overrides = {}) {
       areaSqm: overrides.areaSqm ?? 80,
       description: overrides.description ?? 'Test listing',
       ...overrides
-    },
-    db
+    }
   );
 }
 
 afterEach(() => {
+  setConvexClientForTests(null);
   for (const db of databases) {
     db.close();
   }
@@ -79,18 +81,17 @@ describe('deal triage persistence', () => {
     ]);
   });
 
-  test('upserts and reads triage state for a property', () => {
-    const db = memoryDb();
-    const property = seedProperty(db);
+  test('upserts and reads triage state for a property', async () => {
+    installFakeConvex();
+    const property = await seedProperty();
 
-    const saved = upsertTriage(
+    const saved = await upsertTriage(
       property.id,
       {
         status: 'watching',
         note: 'Call broker about documents',
         rejectedReason: ''
-      },
-      db
+      }
     );
 
     assert.equal(saved.propertyId, property.id);
@@ -99,40 +100,40 @@ describe('deal triage persistence', () => {
     assert.equal(saved.rejectedReason, '');
     assert.match(saved.updatedAt, /\d{4}-\d{2}-\d{2}/);
 
-    const found = getTriageByPropertyId(property.id, db);
+    const found = await getTriageByPropertyId(property.id);
     assert.deepEqual(found, saved);
   });
 
-  test('getTriageMap returns persisted states by property id', () => {
-    const db = memoryDb();
-    const first = seedProperty(db, { externalId: 'triage-map-1' });
-    const second = seedProperty(db, { externalId: 'triage-map-2' });
+  test('getTriageMap returns persisted states by property id', async () => {
+    installFakeConvex();
+    const first = await seedProperty({ externalId: 'triage-map-1' });
+    const second = await seedProperty({ externalId: 'triage-map-2' });
 
-    upsertTriage(first.id, { status: 'needs_call', note: 'Ask about roof' }, db);
-    upsertTriage(second.id, { status: 'rejected', note: '', rejectedReason: 'Too expensive' }, db);
+    await upsertTriage(first.id, { status: 'needs_call', note: 'Ask about roof' });
+    await upsertTriage(second.id, { status: 'rejected', note: '', rejectedReason: 'Too expensive' });
 
-    const map = getTriageMap([first.id, second.id], db);
+    const map = await getTriageMap([first.id, second.id]);
 
     assert.equal(map.get(first.id).status, 'needs_call');
     assert.equal(map.get(second.id).status, 'rejected');
   });
 
-  test('rejects invalid statuses before writing', () => {
-    const db = memoryDb();
-    const property = seedProperty(db);
+  test('rejects invalid statuses before writing', async () => {
+    installFakeConvex();
+    const property = await seedProperty();
 
-    assert.throws(
-      () => upsertTriage(property.id, { status: 'maybe', note: '' }, db),
+    await assert.rejects(
+      () => upsertTriage(property.id, { status: 'maybe', note: '' }),
       /Invalid triage status: maybe/
     );
-    assert.equal(getTriageByPropertyId(property.id, db), null);
+    assert.equal(await getTriageByPropertyId(property.id), null);
   });
 });
 
 describe('deal triage ranking', () => {
-  test('ranks discounted and price-dropped candidates above weak listings', () => {
-    const db = memoryDb();
-    const strong = seedProperty(db, {
+  test('ranks discounted and price-dropped candidates above weak listings', async () => {
+    installFakeConvex();
+    const strong = await seedProperty({
       externalId: 'strong-deal',
       title: 'Discounted apartment',
       priceEur: 80000,
@@ -140,13 +141,13 @@ describe('deal triage ranking', () => {
       condition: 'needs_rehab',
       description: 'Needs renovation'
     });
-    seedProperty(db, {
+    await seedProperty({
       externalId: 'renovated-comp',
       priceEur: 120000,
       areaSqm: 80,
       condition: 'fully_renovated'
     });
-    seedProperty(db, {
+    await seedProperty({
       externalId: 'weak-deal',
       title: 'Expensive apartment',
       priceEur: 130000,
@@ -154,10 +155,10 @@ describe('deal triage ranking', () => {
       condition: 'fully_renovated'
     });
 
-    insertPriceHistory({ propertyId: strong.id, priceEur: 90000 }, db);
-    insertPriceHistory({ propertyId: strong.id, priceEur: 80000 }, db);
+    await insertPriceHistory({ propertyId: strong.id, priceEur: 90000 });
+    await insertPriceHistory({ propertyId: strong.id, priceEur: 80000 });
 
-    const response = listDealTriageOpportunities({ limit: 10 }, db);
+    const response = await listDealTriageOpportunities({ limit: 10 });
 
     assert.ok(response.opportunities.length >= 1);
     assert.equal(response.opportunities[0].property.externalId, 'strong-deal');
@@ -167,17 +168,17 @@ describe('deal triage ranking', () => {
     assert.ok(response.opportunities[0].signals.some((signal) => signal.type === 'price_drop'));
   });
 
-  test('keeps non-new triage entries even when rank score is zero', () => {
-    const db = memoryDb();
-    const property = seedProperty(db, {
+  test('keeps non-new triage entries even when rank score is zero', async () => {
+    installFakeConvex();
+    const property = await seedProperty({
       externalId: 'manual-watch',
       priceEur: 120000,
       areaSqm: 80,
       condition: 'fully_renovated'
     });
-    upsertTriage(property.id, { status: 'watching', note: 'Manual follow-up' }, db);
+    await upsertTriage(property.id, { status: 'watching', note: 'Manual follow-up' });
 
-    const response = listDealTriageOpportunities({ limit: 10 }, db);
+    const response = await listDealTriageOpportunities({ limit: 10 });
     const found = response.opportunities.find((item) => item.property.externalId === 'manual-watch');
 
     assert.ok(found);
@@ -185,24 +186,24 @@ describe('deal triage ranking', () => {
     assert.equal(found.triage.note, 'Manual follow-up');
   });
 
-  test('hides rejected entries by default and includes them when requested', () => {
-    const db = memoryDb();
-    const property = seedProperty(db, {
+  test('hides rejected entries by default and includes them when requested', async () => {
+    installFakeConvex();
+    const property = await seedProperty({
       externalId: 'rejected-deal',
       priceEur: 80000,
       areaSqm: 80,
       condition: 'needs_rehab'
     });
-    seedProperty(db, {
+    await seedProperty({
       externalId: 'rejected-comp',
       priceEur: 120000,
       areaSqm: 80,
       condition: 'fully_renovated'
     });
-    upsertTriage(property.id, { status: 'rejected', rejectedReason: 'Bad building' }, db);
+    await upsertTriage(property.id, { status: 'rejected', rejectedReason: 'Bad building' });
 
-    const hidden = listDealTriageOpportunities({ limit: 10 }, db);
-    const shown = listDealTriageOpportunities({ includeRejected: true, limit: 10 }, db);
+    const hidden = await listDealTriageOpportunities({ limit: 10 });
+    const shown = await listDealTriageOpportunities({ includeRejected: true, limit: 10 });
 
     assert.equal(hidden.opportunities.some((item) => item.property.externalId === 'rejected-deal'), false);
     assert.equal(shown.opportunities.some((item) => item.property.externalId === 'rejected-deal'), true);
@@ -212,20 +213,20 @@ describe('deal triage ranking', () => {
 
 describe('deal triage routes', () => {
   test('GET /api/triage returns ranked opportunities', async () => {
-    const db = memoryDb();
-    seedProperty(db, {
+    installFakeConvex();
+    await seedProperty({
       externalId: 'route-deal',
       priceEur: 80000,
       areaSqm: 80,
       condition: 'needs_rehab'
     });
-    seedProperty(db, {
+    await seedProperty({
       externalId: 'route-comp',
       priceEur: 120000,
       areaSqm: 80,
       condition: 'fully_renovated'
     });
-    const app = createApp({ database: db });
+    const app = createApp();
 
     await withServer(app, async (baseUrl) => {
       const response = await fetch(`${baseUrl}/api/triage?limit=10`);
@@ -239,9 +240,9 @@ describe('deal triage routes', () => {
   });
 
   test('PUT /api/triage/:propertyId validates and persists triage updates', async () => {
-    const db = memoryDb();
-    const property = seedProperty(db, { externalId: 'route-update' });
-    const app = createApp({ database: db });
+    installFakeConvex();
+    const property = await seedProperty({ externalId: 'route-update' });
+    const app = createApp();
 
     await withServer(app, async (baseUrl) => {
       const response = await fetch(`${baseUrl}/api/triage/${property.id}`, {
@@ -259,9 +260,9 @@ describe('deal triage routes', () => {
   });
 
   test('PUT /api/triage/:propertyId returns 400 for invalid status and 404 for missing property', async () => {
-    const db = memoryDb();
-    const property = seedProperty(db, { externalId: 'route-invalid' });
-    const app = createApp({ database: db });
+    installFakeConvex();
+    const property = await seedProperty({ externalId: 'route-invalid' });
+    const app = createApp();
 
     await withServer(app, async (baseUrl) => {
       const invalid = await fetch(`${baseUrl}/api/triage/${property.id}`, {

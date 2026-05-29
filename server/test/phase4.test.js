@@ -1,22 +1,15 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, test } from 'node:test';
-import { createDatabase } from '../src/db/connection.js';
+import { setConvexClientForTests } from '../src/convexClient.js';
 import { upsertProperty } from '../src/db/properties.js';
 import { updateSettings } from '../src/db/settings.js';
 import { createApp } from '../src/index.js';
 import { analyzeProperty, analyzeStrategy, strategyNames } from '../src/strategies/index.js';
 import { isBuyInGreenEligible } from '../src/strategies/buyInGreenEligibility.js';
+import { installFakeConvex } from './helpers/fakeConvex.js';
 
-let databases = [];
-
-function memoryDb() {
-  const db = createDatabase(':memory:');
-  databases.push(db);
-  return db;
-}
-
-function seedStrategyData(db) {
-  const target = upsertProperty(
+async function seedStrategyData() {
+  const target = await upsertProperty(
     {
       externalId: 'deal-1',
       title: 'Two room apartment',
@@ -29,10 +22,9 @@ function seedStrategyData(db) {
       priceEur: 100000,
       areaSqm: 80,
       description: 'Апартамент на зелено в проект преди акт 14'
-    },
-    db
+    }
   );
-  upsertProperty(
+  await upsertProperty(
     {
       externalId: 'comp-1',
       neighborhood: 'Младост 1',
@@ -41,10 +33,9 @@ function seedStrategyData(db) {
       condition: 'fully_renovated',
       priceEur: 132000,
       areaSqm: 80
-    },
-    db
+    }
   );
-  upsertProperty(
+  await upsertProperty(
     {
       externalId: 'deal-2',
       neighborhood: 'Люлин 7',
@@ -53,8 +44,7 @@ function seedStrategyData(db) {
       condition: 'good',
       priceEur: 80000,
       areaSqm: 70
-    },
-    db
+    }
   );
   return target;
 }
@@ -72,10 +62,7 @@ async function withServer(app, callback) {
 }
 
 afterEach(() => {
-  for (const db of databases) {
-    db.close();
-  }
-  databases = [];
+  setConvexClientForTests(null);
 });
 
 describe('Phase 4 strategy engine', () => {
@@ -125,9 +112,9 @@ describe('Phase 4 strategy engine', () => {
     );
   });
 
-  test('registers all strategy names and returns the required result contract', () => {
-    const db = memoryDb();
-    const property = seedStrategyData(db);
+  test('registers all strategy names and returns the required result contract', async () => {
+    installFakeConvex();
+    const property = await seedStrategyData();
 
     assert.deepEqual(strategyNames().sort(), [
       'airbnb',
@@ -138,7 +125,7 @@ describe('Phase 4 strategy engine', () => {
       'flip'
     ]);
 
-    const results = analyzeProperty(property, { database: db });
+    const results = await analyzeProperty(property);
     assert.equal(Object.keys(results).length, 6);
     for (const result of Object.values(results)) {
       assert.ok(result.cashMetrics);
@@ -151,18 +138,17 @@ describe('Phase 4 strategy engine', () => {
     }
   });
 
-  test('cash-flow strategy calculates leveraged mortgage math and breakeven rate', () => {
-    const db = memoryDb();
-    seedStrategyData(db);
-    updateSettings(
+  test('cash-flow strategy calculates leveraged mortgage math and breakeven rate', async () => {
+    installFakeConvex();
+    await seedStrategyData();
+    await updateSettings(
       {
         general: { targetGrossYieldPct: 6, vacancyPct: 5, managementFeePct: 8 },
         leverage: { mortgageRate: 3.5, loanTermYears: 25, downPaymentPct: 20, annualInsuranceEur: 250 }
-      },
-      db
+      }
     );
 
-    const { results } = analyzeStrategy('cash-flow', { database: db, limit: 10 });
+    const { results } = await analyzeStrategy('cash-flow', { limit: 10 });
     const deal = results.find((result) => result.property.externalId === 'deal-1');
 
     assert.ok(deal);
@@ -174,10 +160,10 @@ describe('Phase 4 strategy engine', () => {
     assert.ok(Math.abs(deal.breakEvenRate - 4) < 0.5);
   });
 
-  test('buy-in-green excludes late-stage and ambiguous listings from strategy results', () => {
-    const db = memoryDb();
-    const eligible = seedStrategyData(db);
-    const act14 = upsertProperty(
+  test('buy-in-green excludes late-stage and ambiguous listings from strategy results', async () => {
+    installFakeConvex();
+    const eligible = await seedStrategyData();
+    const act14 = await upsertProperty(
       {
         externalId: 'act14',
         title: 'Апартамент на зелено',
@@ -186,10 +172,9 @@ describe('Phase 4 strategy engine', () => {
         priceEur: 90000,
         areaSqm: 70,
         description: 'Акт 14'
-      },
-      db
+      }
     );
-    upsertProperty(
+    await upsertProperty(
       {
         externalId: 'ambiguous',
         title: 'Ново строителство',
@@ -197,16 +182,15 @@ describe('Phase 4 strategy engine', () => {
         priceEur: 91000,
         areaSqm: 70,
         description: 'Без етап'
-      },
-      db
+      }
     );
 
-    const propertyResults = analyzeProperty(act14, { database: db });
+    const propertyResults = await analyzeProperty(act14);
     assert.equal(propertyResults['buy-in-green'].applicable, false);
     assert.equal(propertyResults['buy-in-green'].health, null);
     assert.equal(propertyResults['buy-in-green'].score, null);
 
-    const { results } = analyzeStrategy('buy-in-green', { database: db, limit: 10 });
+    const { results } = await analyzeStrategy('buy-in-green', { limit: 10 });
     assert.deepEqual(
       results.map((result) => result.property.externalId),
       [eligible.external_id]
@@ -214,23 +198,23 @@ describe('Phase 4 strategy engine', () => {
     assert.equal(results[0].cashMetrics.holdMonths, 24);
   });
 
-  test('rehab strategies use configured rehab cost per sqm', () => {
-    const db = memoryDb();
-    const property = seedStrategyData(db);
-    updateSettings({ general: { rehabCostPerSqm: 450 } }, db);
+  test('rehab strategies use configured rehab cost per sqm', async () => {
+    installFakeConvex();
+    const property = await seedStrategyData();
+    await updateSettings({ general: { rehabCostPerSqm: 450 } });
 
-    const results = analyzeProperty(property, { database: db });
+    const results = await analyzeProperty(property);
 
     assert.equal(results.brrrr.cashMetrics.rehabCost, 36000);
     assert.equal(results.flip.cashMetrics.rehabCost, 36000);
   });
 
-  test('all strategies include configured transaction costs', () => {
-    const db = memoryDb();
-    const property = seedStrategyData(db);
-    updateSettings({ general: { transactionCostPct: 4 } }, db);
+  test('all strategies include configured transaction costs', async () => {
+    installFakeConvex();
+    const property = await seedStrategyData();
+    await updateSettings({ general: { transactionCostPct: 4 } });
 
-    const results = analyzeProperty(property, { database: db });
+    const results = await analyzeProperty(property);
 
     for (const [strategy, result] of Object.entries(results)) {
       assert.equal(result.cashMetrics.transactionCosts, 4000, `${strategy} should include transaction costs`);
@@ -250,12 +234,12 @@ describe('Phase 4 strategy engine', () => {
     assert.equal(results.flip.leveragedMetrics.acquisitionCosts, undefined);
   });
 
-  test('turning leverage off returns null leveraged metrics and cash-only scores', () => {
-    const db = memoryDb();
-    seedStrategyData(db);
-    updateSettings({ leverage: { enabled: false } }, db);
+  test('turning leverage off returns null leveraged metrics and cash-only scores', async () => {
+    installFakeConvex();
+    await seedStrategyData();
+    await updateSettings({ leverage: { enabled: false } });
 
-    const { results, summary } = analyzeStrategy('cash-flow', { database: db });
+    const { results, summary } = await analyzeStrategy('cash-flow');
     assert.equal(summary.leverageEnabled, false);
     assert.equal(results[0].leveragedMetrics, null);
     assert.equal(results[0].health, null);
@@ -263,9 +247,9 @@ describe('Phase 4 strategy engine', () => {
   });
 
   test('strategy routes, property detail, neighborhoods, settings, and overview return JSON contracts', async () => {
-    const db = memoryDb();
-    const property = seedStrategyData(db);
-    const app = createApp({ database: db });
+    installFakeConvex();
+    const property = await seedStrategyData();
+    const app = createApp();
 
     await withServer(app, async (baseUrl) => {
       const strategy = await fetch(`${baseUrl}/api/strategies/cash-flow?limit=10&health=yellow`);

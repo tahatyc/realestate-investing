@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, test } from 'node:test';
-import { createDatabase } from '../src/db/connection.js';
+import { setConvexClientForTests } from '../src/convexClient.js';
 import { getPriceHistoryByPropertyId } from '../src/db/priceHistory.js';
 import { getPropertyByExternalId, queryProperties, upsertProperty } from '../src/db/properties.js';
 import { getLatestScrapingRun } from '../src/db/scrapingRuns.js';
@@ -11,14 +11,7 @@ import { parseDetailPage, parseSearchResults } from '../src/scraper/parser.js';
 import { buildSearchPlan, normalizeScrapeOptions } from '../src/scraper/searchPlan.js';
 import { runScrape } from '../src/scraper/imotbg.js';
 import { createApp } from '../src/index.js';
-
-let databases = [];
-
-function memoryDb() {
-  const db = createDatabase(':memory:');
-  databases.push(db);
-  return db;
-}
+import { installFakeConvex } from './helpers/fakeConvex.js';
 
 async function withServer(app, callback) {
   const server = app.listen(0);
@@ -33,10 +26,7 @@ async function withServer(app, callback) {
 }
 
 afterEach(() => {
-  for (const db of databases) {
-    db.close();
-  }
-  databases = [];
+  setConvexClientForTests(null);
 });
 
 describe('Phase 3 scraper', () => {
@@ -175,7 +165,7 @@ describe('Phase 3 scraper', () => {
   });
 
   test('runs a scrape, tracks price changes, marks missing listings inactive, and recomputes stats', async () => {
-    const db = memoryDb();
+    installFakeConvex();
     const searchUrl = 'https://www.imot.bg/search?page=1';
     const detailUrl = 'https://www.imot.bg/pcgi/imot.cgi?act=5&adv=1c123';
     let price = '85 000 EUR';
@@ -200,13 +190,13 @@ describe('Phase 3 scraper', () => {
     };
 
     const searchPlan = [{ purpose: 'sale', category: 'dvustaen', resultPage: 1, url: searchUrl, fullScope: true }];
-    const first = await runScrape({ database: db, searchPlan, fetcher, delayMs: 0 });
+    const first = await runScrape({ searchPlan, fetcher, delayMs: 0 });
     assert.equal(first.listingsSaved, 1);
 
     price = '83 000 EUR';
-    const second = await runScrape({ database: db, searchPlan, fetcher, delayMs: 0 });
-    const property = getPropertyByExternalId('imot-123', db);
-    const history = getPriceHistoryByPropertyId(property.id, db);
+    const second = await runScrape({ searchPlan, fetcher, delayMs: 0 });
+    const property = await getPropertyByExternalId('imot-123');
+    const history = await getPriceHistoryByPropertyId(property.id);
 
     assert.equal(property.listing_purpose, 'sale');
     assert.equal(property.category, 'dvustaen');
@@ -215,48 +205,46 @@ describe('Phase 3 scraper', () => {
     assert.deepEqual(history.map((entry) => entry.price_eur), [85000, 83000]);
 
     includeListing = false;
-    await runScrape({ database: db, searchPlan, fetcher, delayMs: 0 });
-    assert.equal(queryProperties({}, db).length, 0);
-    assert.equal(queryProperties({ includeInactive: true }, db)[0].is_active, 0);
+    await runScrape({ searchPlan, fetcher, delayMs: 0 });
+    assert.equal((await queryProperties({})).length, 0);
+    assert.equal((await queryProperties({ includeInactive: true }))[0].is_active, 0);
   });
 
   test('bounded scrape does not deactivate listings outside completed scanned scope', async () => {
-    const db = memoryDb();
-    upsertProperty({ externalId: 'sale-a', listingPurpose: 'sale', category: 'dvustaen', priceEur: 100000 }, db);
-    upsertProperty({ externalId: 'sale-b', listingPurpose: 'sale', category: 'tristaen', priceEur: 120000 }, db);
-    upsertProperty({ externalId: 'rent-a', listingPurpose: 'rent', category: 'dvustaen', priceEur: 600 }, db);
+    installFakeConvex();
+    await upsertProperty({ externalId: 'sale-a', listingPurpose: 'sale', category: 'dvustaen', priceEur: 100000 });
+    await upsertProperty({ externalId: 'sale-b', listingPurpose: 'sale', category: 'tristaen', priceEur: 120000 });
+    await upsertProperty({ externalId: 'rent-a', listingPurpose: 'rent', category: 'dvustaen', priceEur: 600 });
 
     await runScrape({
-      database: db,
       searchPlan: [{ purpose: 'sale', category: 'dvustaen', resultPage: 1, url: 'https://www.imot.bg/sale-a', fullScope: true }],
       fetcher: async () => ({ body: '<main></main>' }),
       delayMs: 0
     });
 
-    assert.equal(getPropertyByExternalId('sale-a', db).is_active, 0);
-    assert.equal(getPropertyByExternalId('sale-b', db).is_active, 1);
-    assert.equal(getPropertyByExternalId('rent-a', db).is_active, 1);
+    assert.equal((await getPropertyByExternalId('sale-a')).is_active, 0);
+    assert.equal((await getPropertyByExternalId('sale-b')).is_active, 1);
+    assert.equal((await getPropertyByExternalId('rent-a')).is_active, 1);
   });
 
   test('bounded partial scopes keep unseen listings active within the same category', async () => {
-    const db = memoryDb();
-    upsertProperty({ externalId: 'sale-a', listingPurpose: 'sale', category: 'dvustaen', priceEur: 100000 }, db);
+    installFakeConvex();
+    await upsertProperty({ externalId: 'sale-a', listingPurpose: 'sale', category: 'dvustaen', priceEur: 100000 });
 
     await runScrape({
-      database: db,
       searchPlan: [{ purpose: 'sale', category: 'dvustaen', resultPage: 1, url: 'https://www.imot.bg/sale-a', fullScope: false }],
       fetcher: async () => ({ body: '<main></main>' }),
       delayMs: 0
     });
 
-    assert.equal(getPropertyByExternalId('sale-a', db).is_active, 1);
+    assert.equal((await getPropertyByExternalId('sale-a')).is_active, 1);
   });
 
   test('overview reports sale listings and rental comps separately', async () => {
-    const db = memoryDb();
-    upsertProperty({ externalId: 'overview-sale', listingPurpose: 'sale', category: 'dvustaen', priceEur: 100000 }, db);
-    upsertProperty({ externalId: 'overview-rent', listingPurpose: 'rent', category: 'dvustaen', priceEur: 600 }, db);
-    const app = createApp({ database: db });
+    installFakeConvex();
+    await upsertProperty({ externalId: 'overview-sale', listingPurpose: 'sale', category: 'dvustaen', priceEur: 100000 });
+    await upsertProperty({ externalId: 'overview-rent', listingPurpose: 'rent', category: 'dvustaen', priceEur: 600 });
+    const app = createApp();
 
     await withServer(app, async (baseUrl) => {
       const response = await fetch(`${baseUrl}/api/overview`);
@@ -269,15 +257,13 @@ describe('Phase 3 scraper', () => {
   });
 
   test('exposes scraper start, status, and history routes', async () => {
-    const db = memoryDb();
+    installFakeConvex();
     let receivedOptions = null;
     const app = createApp({
-      database: db,
       scraper: {
         start: async (options) => {
           receivedOptions = options;
           return runScrape({
-            database: db,
             searchPlan: [],
             fetcher: async () => ({ body: '<main></main>' }),
             delayMs: 0
@@ -306,7 +292,7 @@ describe('Phase 3 scraper', () => {
       const history = await fetch(`${baseUrl}/api/scraper/history`);
       assert.equal(history.status, 200);
       assert.equal((await history.json()).runs.length, 1);
-      assert.equal(getLatestScrapingRun(db).status, 'completed');
+      assert.equal((await getLatestScrapingRun()).status, 'completed');
     });
   });
 });
