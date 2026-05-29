@@ -1,9 +1,29 @@
-import { getDb } from './connection.js';
+import { anyApi } from 'convex/server';
 
-const propertyColumns = [
-  'external_id',
+import { getConvexClient } from '../convexClient.js';
+import { propertyDocToRow } from './rowMapping.js';
+
+const propertyFieldMap = {
+  external_id: 'externalId',
+  listing_purpose: 'listingPurpose',
+  price_eur: 'priceEur',
+  price_bgn: 'priceBgn',
+  area_sqm: 'areaSqm',
+  price_per_sqm: 'pricePerSqm',
+  total_floors: 'totalFloors',
+  construction_year: 'constructionYear',
+  construction_stage: 'constructionStage',
+  image_url: 'imageUrl',
+  first_seen_at: 'firstSeenAt',
+  last_seen_at: 'lastSeenAt',
+  created_at: 'createdAt',
+  updated_at: 'updatedAt'
+};
+
+const propertyFields = new Set([
+  'externalId',
   'source',
-  'listing_purpose',
+  'listingPurpose',
   'category',
   'url',
   'title',
@@ -11,194 +31,114 @@ const propertyColumns = [
   'zone',
   'type',
   'condition',
-  'price_eur',
-  'price_bgn',
-  'area_sqm',
-  'price_per_sqm',
+  'priceEur',
+  'priceBgn',
+  'areaSqm',
+  'pricePerSqm',
   'floor',
-  'total_floors',
+  'totalFloors',
   'rooms',
-  'construction_year',
-  'construction_stage',
+  'constructionYear',
+  'constructionStage',
   'description',
-  'image_url'
-];
+  'imageUrl',
+  'firstSeenAt',
+  'lastSeenAt',
+  'createdAt',
+  'updatedAt'
+]);
 
-const columnMap = {
-  externalId: 'external_id',
-  listingPurpose: 'listing_purpose',
-  priceEur: 'price_eur',
-  priceBgn: 'price_bgn',
-  areaSqm: 'area_sqm',
-  pricePerSqm: 'price_per_sqm',
-  totalFloors: 'total_floors',
-  constructionYear: 'construction_year',
-  constructionStage: 'construction_stage',
-  imageUrl: 'image_url'
-};
-
-function toSnakeRecord(property) {
+function normalizeProperty(property) {
   const record = {};
 
   for (const [key, value] of Object.entries(property)) {
-    const column = columnMap[key] || key;
-    if (propertyColumns.includes(column)) {
-      record[column] = value;
+    const field = propertyFieldMap[key] || key;
+    if (propertyFields.has(field)) {
+      record[field] = value;
     }
   }
 
   if (!record.source) {
     record.source = 'imot.bg';
   }
-  if (!record.listing_purpose) {
-    record.listing_purpose = 'sale';
+  if (!record.listingPurpose) {
+    record.listingPurpose = 'sale';
   }
-
-  if (record.area_sqm && record.price_eur && !record.price_per_sqm) {
-    record.price_per_sqm = record.price_eur / record.area_sqm;
+  if (record.areaSqm && record.priceEur && record.pricePerSqm == null) {
+    record.pricePerSqm = record.priceEur / record.areaSqm;
   }
 
   return record;
 }
 
-function whereFromFilters(filters) {
-  const clauses = ['is_active = @isActive'];
-  const params = { isActive: filters.includeInactive ? 0 : 1 };
+function normalizeLimit(limit) {
+  return Math.min(Number(limit) || 50, 250);
+}
 
-  if (filters.includeInactive === true) {
-    clauses.length = 0;
-  }
-  if (filters.includeAllPurposes !== true) {
-    clauses.push('listing_purpose = @listingPurpose');
-    params.listingPurpose = filters.listingPurpose ?? 'sale';
-  } else if (filters.listingPurpose) {
-    clauses.push('listing_purpose = @listingPurpose');
-    params.listingPurpose = filters.listingPurpose;
-  }
-  if (filters.category) {
-    clauses.push('category = @category');
-    params.category = filters.category;
-  }
-  if (filters.zone) {
-    clauses.push('zone = @zone');
-    params.zone = filters.zone;
-  }
-  if (filters.type) {
-    clauses.push('type = @type');
-    params.type = filters.type;
-  }
-  if (filters.condition) {
-    clauses.push('condition = @condition');
-    params.condition = filters.condition;
-  }
-  if (filters.minPrice != null) {
-    clauses.push('price_eur >= @minPrice');
-    params.minPrice = filters.minPrice;
-  }
-  if (filters.maxPrice != null) {
-    clauses.push('price_eur <= @maxPrice');
-    params.maxPrice = filters.maxPrice;
-  }
-  if (filters.minArea != null) {
-    clauses.push('area_sqm >= @minArea');
-    params.minArea = filters.minArea;
-  }
-  if (filters.maxArea != null) {
-    clauses.push('area_sqm <= @maxArea');
-    params.maxArea = filters.maxArea;
-  }
+function normalizeOffset(offset) {
+  return Number(offset) || 0;
+}
 
+function normalizeFilters(filters) {
   return {
-    where: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '',
-    params
+    includeInactive: filters.includeInactive === true ? true : undefined,
+    includeAllPurposes: filters.includeAllPurposes === true ? true : undefined,
+    listingPurpose: filters.listingPurpose,
+    category: filters.category,
+    neighborhood: filters.neighborhood,
+    zone: filters.zone,
+    type: filters.type,
+    condition: filters.condition,
+    minPrice: filters.minPrice,
+    maxPrice: filters.maxPrice,
+    minArea: filters.minArea,
+    maxArea: filters.maxArea,
+    limit: normalizeLimit(filters.limit),
+    offset: normalizeOffset(filters.offset)
   };
 }
 
-export function upsertProperty(property, database = getDb()) {
-  const record = toSnakeRecord(property);
+export async function upsertProperty(property, _database) {
+  const record = normalizeProperty(property);
 
-  if (!record.external_id) {
+  if (!record.externalId) {
     throw new Error('externalId is required');
   }
-  if (record.price_eur == null) {
+  if (record.priceEur == null) {
     throw new Error('priceEur is required');
   }
 
-  const columns = Object.keys(record);
-  const placeholders = columns.map((column) => `@${column}`);
-  const updates = columns
-    .filter((column) => column !== 'external_id' && column !== 'first_seen_at')
-    .map((column) => `${column} = excluded.${column}`)
-    .concat(['last_seen_at = CURRENT_TIMESTAMP', 'updated_at = CURRENT_TIMESTAMP', 'is_active = 1']);
-
-  database
-    .prepare(
-      `INSERT INTO properties (${columns.join(', ')})
-       VALUES (${placeholders.join(', ')})
-       ON CONFLICT(external_id) DO UPDATE SET ${updates.join(', ')}`
-    )
-    .run(record);
-
-  return getPropertyByExternalId(record.external_id, database);
+  const doc = await getConvexClient().mutation(anyApi.properties.upsert, record);
+  return propertyDocToRow(doc);
 }
 
-export function queryProperties(filters = {}, database = getDb()) {
-  const { where, params } = whereFromFilters(filters);
-  const limit = Math.min(Number(filters.limit) || 50, 250);
-  const offset = Number(filters.offset) || 0;
-
-  return database
-    .prepare(
-      `SELECT * FROM properties
-       ${where}
-       ORDER BY updated_at DESC, id DESC
-       LIMIT @limit OFFSET @offset`
-    )
-    .all({ ...params, limit, offset });
+export async function queryProperties(filters = {}, _database) {
+  const docs = await getConvexClient().query(anyApi.properties.list, normalizeFilters(filters));
+  return docs.map(propertyDocToRow);
 }
 
-export function getPropertyById(id, database = getDb()) {
-  return database.prepare('SELECT * FROM properties WHERE id = ?').get(id) || null;
+export async function getPropertyById(id, _database) {
+  const doc = await getConvexClient().query(anyApi.properties.byId, { id });
+  return propertyDocToRow(doc);
 }
 
-export function getPropertyByExternalId(externalId, database = getDb()) {
-  return database.prepare('SELECT * FROM properties WHERE external_id = ?').get(externalId) || null;
+export async function getPropertyByExternalId(externalId, _database) {
+  const doc = await getConvexClient().query(anyApi.properties.byExternalId, { externalId });
+  return propertyDocToRow(doc);
 }
 
-export function markInactive(id, database = getDb()) {
-  const result = database
-    .prepare('UPDATE properties SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-    .run(id);
-  return result.changes > 0;
+export async function markInactive(id, _database) {
+  return await getConvexClient().mutation(anyApi.properties.markInactive, { id });
 }
 
-export function markInactiveByScope({ listingPurpose, category, seenExternalIds = [] }, database = getDb()) {
-  const params = { listingPurpose, category };
-  const seen = [...seenExternalIds].filter(Boolean);
-
+export async function markInactiveByScope({ listingPurpose, category, seenExternalIds = [] }, _database) {
   if (!listingPurpose || !category) {
     throw new Error('listingPurpose and category are required for scoped inactive marking');
   }
 
-  let seenClause = '';
-  if (seen.length) {
-    seenClause = `AND external_id NOT IN (${seen.map((_, index) => `@seen${index}`).join(', ')})`;
-    for (const [index, externalId] of seen.entries()) {
-      params[`seen${index}`] = externalId;
-    }
-  }
-
-  const result = database
-    .prepare(
-      `UPDATE properties
-       SET is_active = 0, updated_at = CURRENT_TIMESTAMP
-       WHERE source = 'imot.bg'
-         AND listing_purpose = @listingPurpose
-         AND category = @category
-         AND is_active = 1
-         ${seenClause}`
-    )
-    .run(params);
-
-  return result.changes;
+  return await getConvexClient().mutation(anyApi.properties.markInactiveByScope, {
+    listingPurpose,
+    category,
+    seenExternalIds: [...seenExternalIds].filter(Boolean)
+  });
 }

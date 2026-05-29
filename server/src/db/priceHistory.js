@@ -1,23 +1,19 @@
-import { getDb } from './connection.js';
+import { anyApi } from 'convex/server';
 
-export function insertPriceHistory(entry, database = getDb()) {
-  const result = database
-    .prepare(
-      `INSERT INTO price_history (property_id, price_eur, price_bgn, recorded_at)
-       VALUES (@propertyId, @priceEur, @priceBgn, COALESCE(@recordedAt, CURRENT_TIMESTAMP))`
-    )
-    .run({
-      propertyId: entry.propertyId,
-      priceEur: entry.priceEur,
-      priceBgn: entry.priceBgn ?? null,
-      recordedAt: entry.recordedAt ?? null
-    });
+import { getConvexClient } from '../convexClient.js';
+import { priceHistoryDocToRow } from './rowMapping.js';
 
-  return database.prepare('SELECT * FROM price_history WHERE id = ?').get(result.lastInsertRowid);
+export async function insertPriceHistory(entry, _database) {
+  const doc = await getConvexClient().mutation(anyApi.priceHistory.insert, {
+    propertyId: entry.propertyId,
+    priceEur: entry.priceEur,
+    priceBgn: entry.priceBgn ?? undefined,
+    recordedAt: entry.recordedAt ?? undefined
+  });
+  return priceHistoryDocToRow(doc);
 }
 
-export function getPriceHistoryByPropertyId(propertyId, database = getDb()) {
-  return database
-    .prepare('SELECT * FROM price_history WHERE property_id = ? ORDER BY recorded_at ASC, id ASC')
-    .all(propertyId);
+export async function getPriceHistoryByPropertyId(propertyId, _database) {
+  const docs = await getConvexClient().query(anyApi.priceHistory.byProperty, { propertyId });
+  return docs.map(priceHistoryDocToRow);
 }

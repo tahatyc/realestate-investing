@@ -1,77 +1,24 @@
-import { getDb } from './connection.js';
+import { anyApi } from 'convex/server';
 
-export function createScrapingRun(values = {}, database = getDb()) {
-  const result = database
-    .prepare(
-      `INSERT INTO scraping_runs (
-        status, pages_total, pages_scraped, sale_pages_scraped, rental_pages_scraped,
-        current_purpose, current_category, crawl_mode, listings_found, listings_saved, error_message
-       )
-       VALUES (
-        @status, @pagesTotal, @pagesScraped, @salePagesScraped, @rentalPagesScraped,
-        @currentPurpose, @currentCategory, @crawlMode, @listingsFound, @listingsSaved, @errorMessage
-       )`
-    )
-    .run({
-      status: values.status ?? 'running',
-      pagesTotal: values.pagesTotal ?? 0,
-      pagesScraped: values.pagesScraped ?? 0,
-      salePagesScraped: values.salePagesScraped ?? 0,
-      rentalPagesScraped: values.rentalPagesScraped ?? 0,
-      currentPurpose: values.currentPurpose ?? null,
-      currentCategory: values.currentCategory ?? null,
-      crawlMode: values.crawlMode ?? 'bounded',
-      listingsFound: values.listingsFound ?? 0,
-      listingsSaved: values.listingsSaved ?? 0,
-      errorMessage: values.errorMessage ?? null
-    });
+import { getConvexClient } from '../convexClient.js';
+import { scrapingRunDocToRow } from './rowMapping.js';
 
-  return database.prepare('SELECT * FROM scraping_runs WHERE id = ?').get(result.lastInsertRowid);
+export async function createScrapingRun(values = {}, _database) {
+  const doc = await getConvexClient().mutation(anyApi.scrapingRuns.create, values);
+  return scrapingRunDocToRow(doc);
 }
 
-export function updateScrapingRun(id, values = {}, database = getDb()) {
-  const allowed = {
-    status: 'status',
-    completedAt: 'completed_at',
-    pagesTotal: 'pages_total',
-    pagesScraped: 'pages_scraped',
-    salePagesScraped: 'sale_pages_scraped',
-    rentalPagesScraped: 'rental_pages_scraped',
-    currentPurpose: 'current_purpose',
-    currentCategory: 'current_category',
-    crawlMode: 'crawl_mode',
-    listingsFound: 'listings_found',
-    listingsSaved: 'listings_saved',
-    errorMessage: 'error_message'
-  };
-
-  const updates = [];
-  const params = { id };
-
-  for (const [key, column] of Object.entries(allowed)) {
-    if (Object.prototype.hasOwnProperty.call(values, key)) {
-      updates.push(`${column} = @${key}`);
-      params[key] = values[key];
-    }
-  }
-
-  if (values.status === 'completed' || values.status === 'failed') {
-    updates.push('completed_at = COALESCE(@completedAt, CURRENT_TIMESTAMP)');
-    params.completedAt = values.completedAt ?? null;
-  }
-
-  if (!updates.length) {
-    return database.prepare('SELECT * FROM scraping_runs WHERE id = ?').get(id) || null;
-  }
-
-  database.prepare(`UPDATE scraping_runs SET ${updates.join(', ')} WHERE id = @id`).run(params);
-  return database.prepare('SELECT * FROM scraping_runs WHERE id = ?').get(id) || null;
+export async function updateScrapingRun(id, values = {}, _database) {
+  const doc = await getConvexClient().mutation(anyApi.scrapingRuns.update, { id, ...values });
+  return scrapingRunDocToRow(doc);
 }
 
-export function getLatestScrapingRun(database = getDb()) {
-  return (
-    database
-      .prepare('SELECT * FROM scraping_runs ORDER BY started_at DESC, id DESC LIMIT 1')
-      .get() || null
-  );
+export async function getLatestScrapingRun(_database) {
+  const doc = await getConvexClient().query(anyApi.scrapingRuns.latest, {});
+  return scrapingRunDocToRow(doc);
+}
+
+export async function listScrapingRuns(limit = 25, _database) {
+  const docs = await getConvexClient().query(anyApi.scrapingRuns.history, { limit });
+  return docs.map(scrapingRunDocToRow);
 }

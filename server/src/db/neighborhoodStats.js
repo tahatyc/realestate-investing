@@ -1,45 +1,14 @@
-import { getDb } from './connection.js';
+import { anyApi } from 'convex/server';
 
-export function recomputeNeighborhoodStats(database = getDb()) {
-  const transaction = database.transaction(() => {
-    database.prepare('DELETE FROM neighborhood_stats').run();
-    database
-      .prepare(
-        `INSERT INTO neighborhood_stats (
-          neighborhood,
-          zone,
-          property_count,
-          avg_price_eur,
-          avg_price_per_sqm,
-          min_price_eur,
-          max_price_eur,
-          avg_area_sqm
-        )
-        SELECT
-          neighborhood,
-          zone,
-          COUNT(*),
-          AVG(price_eur),
-          AVG(price_per_sqm),
-          MIN(price_eur),
-          MAX(price_eur),
-          AVG(area_sqm)
-        FROM properties
-        WHERE is_active = 1 AND neighborhood IS NOT NULL
-        GROUP BY neighborhood, zone`
-      )
-      .run();
-  });
+import { getConvexClient } from '../convexClient.js';
+import { neighborhoodStatDocToRow } from './rowMapping.js';
 
-  transaction();
-  return getNeighborhoodStats(database);
+export async function recomputeNeighborhoodStats(_database) {
+  const docs = await getConvexClient().mutation(anyApi.neighborhoodStats.recompute, {});
+  return docs.map(neighborhoodStatDocToRow);
 }
 
-export function getNeighborhoodStats(database = getDb()) {
-  return database
-    .prepare(
-      `SELECT * FROM neighborhood_stats
-       ORDER BY zone IS NULL, zone ASC, neighborhood ASC`
-    )
-    .all();
+export async function getNeighborhoodStats(_database) {
+  const docs = await getConvexClient().query(anyApi.neighborhoodStats.list, {});
+  return docs.map(neighborhoodStatDocToRow);
 }
