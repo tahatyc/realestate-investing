@@ -29,7 +29,7 @@ export const byProperty = query({
     return await db
       .query('dealTriage')
       .withIndex('by_property', (q) => q.eq('propertyId', propertyId))
-      .first();
+      .unique();
   }
 });
 
@@ -66,7 +66,7 @@ export const upsert = mutation({
     const existing = await db
       .query('dealTriage')
       .withIndex('by_property', (q) => q.eq('propertyId', args.propertyId))
-      .first();
+      .unique();
     const record = {
       propertyId: args.propertyId,
       status: normalizeStatus(args.status),

@@ -91,6 +91,11 @@ const normalizeExisting = (existing) => ({
   flags: { ...DEFAULT_SETTINGS.flags, ...(existing?.flags ?? {}) }
 });
 
+const toSettingsResponse = (settings) => ({
+  ...normalizeExisting(settings),
+  updatedAt: settings?.updatedAt ?? null
+});
+
 const mergeSettings = (base, updates) => {
   const patch = updates ?? {};
   const next = {
@@ -117,7 +122,7 @@ const firstSettingsDoc = async (db) => {
 export const defaultSettings = query({
   args: {},
   handler: async () => {
-    return { ...cloneDefaults(), updatedAt: null };
+    return toSettingsResponse(null);
   }
 });
 
@@ -125,14 +130,7 @@ export const get = query({
   args: {},
   handler: async ({ db }) => {
     const existing = await firstSettingsDoc(db);
-    if (!existing) {
-      return { ...cloneDefaults(), updatedAt: null };
-    }
-
-    return {
-      ...normalizeExisting(existing),
-      updatedAt: existing.updatedAt
-    };
+    return toSettingsResponse(existing);
   }
 });
 
@@ -148,10 +146,10 @@ export const update = mutation({
 
     if (existing) {
       await db.patch(existing._id, record);
-      return await db.get(existing._id);
+      return toSettingsResponse(await db.get(existing._id));
     }
 
     const id = await db.insert('settings', record);
-    return await db.get(id);
+    return toSettingsResponse(await db.get(id));
   }
 });
