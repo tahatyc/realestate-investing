@@ -100,10 +100,9 @@ const mergeSettings = (base, updates) => {
     flags: { ...base.flags, ...(patch.flags ?? {}) }
   };
 
-  if (patch.leverage?.downPaymentPct !== undefined && patch.leverage?.ltvPct === undefined) {
+  if (patch.leverage?.downPaymentPct !== undefined) {
     next.leverage.ltvPct = 100 - Number(patch.leverage.downPaymentPct);
-  }
-  if (patch.leverage?.ltvPct !== undefined && patch.leverage?.downPaymentPct === undefined) {
+  } else if (patch.leverage?.ltvPct !== undefined) {
     next.leverage.downPaymentPct = 100 - Number(patch.leverage.ltvPct);
   }
 
