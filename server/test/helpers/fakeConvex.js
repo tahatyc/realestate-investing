@@ -82,6 +82,16 @@ function matchesFilters(property, filters = {}) {
   return true;
 }
 
+function isMalformedFakePropertyId(id) {
+  return id == null || /^[0-9]+$/.test(String(id));
+}
+
+function throwMalformedPropertyId(id) {
+  const error = new Error(`Value does not match validator v.id("properties"): ${id}`);
+  error.code = 'ConvexValidationError';
+  throw error;
+}
+
 function average(values) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
@@ -142,6 +152,10 @@ export function createFakeConvexClient(initialState = {}) {
   function listProperties(args) {
     return state.properties
       .filter((property) => matchesFilters(property, args))
+      .sort((left, right) => {
+        const updated = String(right.updatedAt ?? '').localeCompare(String(left.updatedAt ?? ''));
+        return updated || String(right._id ?? right.id ?? '').localeCompare(String(left._id ?? left.id ?? ''));
+      })
       .slice(args.offset ?? 0, (args.offset ?? 0) + (args.limit ?? 50))
       .map(clone);
   }
@@ -289,6 +303,7 @@ export function createFakeConvexClient(initialState = {}) {
       case 'properties:count':
         return state.properties.filter((property) => matchesFilters(property, args)).length;
       case 'properties:byId':
+        if (isMalformedFakePropertyId(args.id)) throwMalformedPropertyId(args.id);
         return clone(state.properties.find((property) => property._id === args.id || property.id === args.id) ?? null);
       case 'properties:byExternalId':
         return clone(state.properties.find((property) => property.externalId === args.externalId) ?? null);
@@ -307,8 +322,12 @@ export function createFakeConvexClient(initialState = {}) {
       case 'settings:get':
         return clone(state.settings);
       case 'dealTriage:byProperty':
+        if (isMalformedFakePropertyId(args.propertyId)) throwMalformedPropertyId(args.propertyId);
         return clone(state.dealTriage.find((item) => item.propertyId === args.propertyId) ?? null);
       case 'dealTriage:forProperties': {
+        if ((args.propertyIds ?? []).some(isMalformedFakePropertyId)) {
+          throwMalformedPropertyId((args.propertyIds ?? []).find(isMalformedFakePropertyId));
+        }
         const ids = new Set(args.propertyIds ?? []);
         return state.dealTriage.filter((item) => ids.has(item.propertyId)).map(clone);
       }

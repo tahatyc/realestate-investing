@@ -3,6 +3,7 @@ import { getPriceHistoryByPropertyId } from '../db/priceHistory.js';
 import { countProperties, getPropertyById, queryProperties } from '../db/properties.js';
 import { getSettings } from '../db/settings.js';
 import { analyzeProperty } from '../strategies/index.js';
+import { findPropertyForRoute } from './propertyIds.js';
 
 export function createPropertiesRouter({ database } = {}) {
   const router = Router();
@@ -32,7 +33,7 @@ export function createPropertiesRouter({ database } = {}) {
   }));
 
   router.get('/:id', asyncHandler(async (req, res) => {
-    const property = await getPropertyById(req.params.id, database);
+    const property = await findPropertyForRoute(req.params.id, database, getPropertyById);
     if (!property) {
       return res.status(404).json({ error: 'Property not found' });
     }

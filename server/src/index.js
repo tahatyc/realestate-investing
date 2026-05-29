@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import { pathToFileURL } from 'node:url';
-import { initializeDatabase } from './db/connection.js';
 import { createNeighborhoodsRouter } from './routes/neighborhoods.js';
 import { createOverviewRouter } from './routes/overview.js';
 import { createPropertiesRouter } from './routes/properties.js';
@@ -40,7 +39,7 @@ export function createApp({ database, scraper } = {}) {
 const port = process.env.PORT || 3001;
 const isEntrypoint = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;
 
-export const app = isEntrypoint ? createApp({ database: initializeDatabase() }) : null;
+export const app = createApp();
 
 if (isEntrypoint) {
   app.listen(port, () => {

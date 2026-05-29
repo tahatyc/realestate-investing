@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { upsertTriage } from '../db/dealTriage.js';
 import { getPropertyById } from '../db/properties.js';
 import { listDealTriageOpportunities } from '../triage/dealTriage.js';
+import { findPropertyForRoute } from './propertyIds.js';
 
 export function createTriageRouter({ database } = {}) {
   const router = Router();
@@ -25,7 +26,7 @@ export function createTriageRouter({ database } = {}) {
   }));
 
   router.put('/:propertyId', asyncHandler(async (req, res) => {
-    const property = await getPropertyById(req.params.propertyId, database);
+    const property = await findPropertyForRoute(req.params.propertyId, database, getPropertyById);
     if (!property) {
       return res.status(404).json({ error: 'Property not found' });
     }

@@ -279,6 +279,7 @@ describe('deal triage routes', () => {
         body: JSON.stringify({ status: 'watching' })
       });
       assert.equal(missing.status, 404);
+      assert.match((await missing.json()).error, /Property not found/);
     });
   });
 });

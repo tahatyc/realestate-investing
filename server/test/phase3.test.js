@@ -25,6 +25,21 @@ async function withServer(app, callback) {
   }
 }
 
+async function pollUntil(callback, { timeoutMs = 1000, intervalMs = 10 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  let latest;
+
+  while (Date.now() < deadline) {
+    latest = await callback();
+    if (latest.status !== 'running') {
+      return latest;
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+
+  return latest;
+}
+
 afterEach(() => {
   setConvexClientForTests(null);
 });
@@ -283,11 +298,12 @@ describe('Phase 3 scraper', () => {
       assert.equal(startJson.status, 'running');
       assert.deepEqual(receivedOptions, { includeRentals: false, maxPagesPerCategory: 2 });
 
-      await new Promise((resolve) => setTimeout(resolve, 20));
-
-      const status = await fetch(`${baseUrl}/api/scraper/status`);
-      assert.equal(status.status, 200);
-      assert.equal((await status.json()).status, 'completed');
+      const statusJson = await pollUntil(async () => {
+        const status = await fetch(`${baseUrl}/api/scraper/status`);
+        assert.equal(status.status, 200);
+        return await status.json();
+      });
+      assert.equal(statusJson.status, 'completed');
 
       const history = await fetch(`${baseUrl}/api/scraper/history`);
       assert.equal(history.status, 200);

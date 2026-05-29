@@ -3,7 +3,7 @@ import { afterEach, describe, test } from 'node:test';
 import { setConvexClientForTests } from '../src/convexClient.js';
 import { upsertProperty } from '../src/db/properties.js';
 import { updateSettings } from '../src/db/settings.js';
-import { createApp } from '../src/index.js';
+import { app as exportedApp, createApp } from '../src/index.js';
 import { analyzeProperty, analyzeStrategy, strategyNames } from '../src/strategies/index.js';
 import { isBuyInGreenEligible } from '../src/strategies/buyInGreenEligibility.js';
 import { installFakeConvex } from './helpers/fakeConvex.js';
@@ -66,6 +66,10 @@ afterEach(() => {
 });
 
 describe('Phase 4 strategy engine', () => {
+  test('exports an import-safe Express app instance', () => {
+    assert.equal(typeof exportedApp.listen, 'function');
+  });
+
   test('buy-in-green eligibility requires explicit pre-Act 14 signals', () => {
     assert.equal(
       isBuyInGreenEligible({
@@ -266,6 +270,10 @@ describe('Phase 4 strategy engine', () => {
       assert.equal(detailJson.property.id, property.id);
       assert.ok(detailJson.leverageSettings.enabled);
       assert.ok(detailJson.strategies['cash-flow'].cashMetrics);
+
+      const invalidDetail = await fetch(`${baseUrl}/api/properties/999999`);
+      assert.equal(invalidDetail.status, 404);
+      assert.match((await invalidDetail.json()).error, /Property not found/);
 
       const neighborhoods = await fetch(`${baseUrl}/api/neighborhoods`);
       assert.equal(neighborhoods.status, 200);

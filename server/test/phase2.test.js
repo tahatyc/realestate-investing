@@ -107,6 +107,18 @@ describe('Phase 2 data layer', () => {
     assert.equal((await getPropertyByExternalId('rent-1')).category, 'dvustaen');
   });
 
+  test('lists properties by updated time and id descending', async () => {
+    installFakeConvex();
+
+    await upsertProperty({ externalId: 'first', listingPurpose: 'sale', priceEur: 100000 });
+    await upsertProperty({ externalId: 'second', listingPurpose: 'sale', priceEur: 110000 });
+
+    assert.deepEqual(
+      (await queryProperties({})).map((property) => property.external_id),
+      ['second', 'first']
+    );
+  });
+
   test('handles scraping run lifecycle', async () => {
     installFakeConvex();
     const run = await createScrapingRun({ pagesTotal: 2 });
