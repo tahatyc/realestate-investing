@@ -152,10 +152,7 @@ export function createFakeConvexClient(initialState = {}) {
   function listProperties(args) {
     return state.properties
       .filter((property) => matchesFilters(property, args))
-      .sort((left, right) => {
-        const updated = String(right.updatedAt ?? '').localeCompare(String(left.updatedAt ?? ''));
-        return updated || String(right._id ?? right.id ?? '').localeCompare(String(left._id ?? left.id ?? ''));
-      })
+      .sort((left, right) => String(right.updatedAt ?? '').localeCompare(String(left.updatedAt ?? '')))
       .slice(args.offset ?? 0, (args.offset ?? 0) + (args.limit ?? 50))
       .map(clone);
   }

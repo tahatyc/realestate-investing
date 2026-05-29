@@ -107,15 +107,33 @@ describe('Phase 2 data layer', () => {
     assert.equal((await getPropertyByExternalId('rent-1')).category, 'dvustaen');
   });
 
-  test('lists properties by updated time and id descending', async () => {
-    installFakeConvex();
-
-    await upsertProperty({ externalId: 'first', listingPurpose: 'sale', priceEur: 100000 });
-    await upsertProperty({ externalId: 'second', listingPurpose: 'sale', priceEur: 110000 });
+  test('lists properties by updated time descending', async () => {
+    installFakeConvex({
+      properties: [
+        {
+          _id: 'property-1',
+          externalId: 'older',
+          source: 'imot.bg',
+          listingPurpose: 'sale',
+          priceEur: 100000,
+          isActive: true,
+          updatedAt: '2026-05-29T09:00:00.000Z'
+        },
+        {
+          _id: 'property-2',
+          externalId: 'newer',
+          source: 'imot.bg',
+          listingPurpose: 'sale',
+          priceEur: 110000,
+          isActive: true,
+          updatedAt: '2026-05-29T10:00:00.000Z'
+        }
+      ]
+    });
 
     assert.deepEqual(
       (await queryProperties({})).map((property) => property.external_id),
-      ['second', 'first']
+      ['newer', 'older']
     );
   });
 
