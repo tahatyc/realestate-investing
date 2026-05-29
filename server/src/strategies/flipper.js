@@ -1,11 +1,11 @@
 import { baseResult, averagePricePerSqm, financingCarryCost, propertyArea, propertyPrice, transactionCosts } from './shared.js';
 import { downPayment, loanAmount, originationFee } from '../utils/mortgage.js';
 
-export function analyze(property, { database, settings }) {
+export async function analyze(property, { settings }) {
   const price = propertyPrice(property);
   const area = propertyArea(property);
   const rehabCost = area * Number(settings.general?.rehabCostPerSqm ?? 300);
-  const arv = Math.max(averagePricePerSqm(property, database) * area, price * 1.12);
+  const arv = Math.max(await averagePricePerSqm(property) * area, price * 1.12);
   const transaction = transactionCosts(property, settings);
   const profit = arv - price - rehabCost - transaction;
   const totalInvestment = price + rehabCost + transaction;

@@ -7,6 +7,7 @@ import {
   getPropertyById,
   markInactive,
   markInactiveByScope,
+  queryAllProperties,
   queryProperties,
   upsertProperty
 } from '../src/db/properties.js';
@@ -79,6 +80,7 @@ describe('property Convex adapter', () => {
     const fakeClient = createFakeClient([
       propertyDoc,
       [propertyDoc],
+      [propertyDoc],
       42,
       propertyDoc,
       propertyDoc,
@@ -99,6 +101,11 @@ describe('property Convex adapter', () => {
       limit: 999,
       offset: '2'
     });
+    const queriedAll = await queryAllProperties({
+      listingPurpose: 'rent',
+      neighborhood: 'Lozenets',
+      limit: 10000
+    });
     const counted = await countProperties({
       listingPurpose: 'rent',
       neighborhood: 'Lozenets',
@@ -117,6 +124,7 @@ describe('property Convex adapter', () => {
     assert.equal(upserted.external_id, 'ext-1');
     assert.equal(upserted.price_per_sqm, 1500);
     assert.equal(queried[0].neighborhood, 'Lozenets');
+    assert.equal(queriedAll[0].neighborhood, 'Lozenets');
     assert.equal(counted, 42);
     assert.equal(byId.id, 'property-1');
     assert.equal(byExternalId.id, 'property-1');
@@ -124,7 +132,7 @@ describe('property Convex adapter', () => {
     assert.equal(inactiveByScope, 3);
     assert.deepEqual(
       fakeClient.calls.map((call) => call.type),
-      ['mutation', 'query', 'query', 'query', 'query', 'mutation', 'mutation']
+      ['mutation', 'query', 'query', 'query', 'query', 'query', 'mutation', 'mutation']
     );
     assert.ok(fakeClient.calls.every((call) => call.fn && typeof call.fn === 'object'));
     assert.deepEqual(fakeClient.calls[0].args, {
@@ -152,6 +160,22 @@ describe('property Convex adapter', () => {
       offset: 2
     });
     assert.deepEqual(fakeClient.calls[2].args, {
+      includeInactive: undefined,
+      includeAllPurposes: undefined,
+      listingPurpose: 'rent',
+      category: undefined,
+      neighborhood: 'Lozenets',
+      zone: undefined,
+      type: undefined,
+      condition: undefined,
+      minPrice: undefined,
+      maxPrice: undefined,
+      minArea: undefined,
+      maxArea: undefined,
+      limit: 10000,
+      offset: 0
+    });
+    assert.deepEqual(fakeClient.calls[3].args, {
       includeInactive: undefined,
       includeAllPurposes: undefined,
       listingPurpose: 'rent',

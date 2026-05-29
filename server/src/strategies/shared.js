@@ -1,4 +1,5 @@
 import { breakEvenRate, downPayment, dscr, interestOnlyPayment, loanAmount, monthlyPayment, originationFee, rateSensitivity } from '../utils/mortgage.js';
+import { queryAllProperties } from '../db/properties.js';
 
 export function propertyPrice(property) {
   return Number(property.price_eur ?? property.priceEur ?? 0);
@@ -43,18 +44,27 @@ export function monthlyNoi(property, settings, monthlyRent = estimatedMonthlyRen
   return monthlyRent * (1 - (vacancy + management) / 100);
 }
 
-export function averagePricePerSqm(property, database) {
-  const row = database
-    .prepare(
-      `SELECT AVG(price_per_sqm) AS value
-       FROM properties
-       WHERE is_active = 1
-         AND zone = @zone
-         AND price_per_sqm IS NOT NULL
-         AND external_id != @externalId`
-    )
-    .get({ zone: property.zone, externalId: property.external_id });
-  return Number(row?.value || property.price_per_sqm || 0);
+export async function averagePricePerSqm(property) {
+  if (!property.zone) {
+    return Number(property.price_per_sqm || 0);
+  }
+
+  const comps = await queryAllProperties({
+    zone: property.zone,
+    listingPurpose: 'sale',
+    limit: 10000
+  });
+  const prices = comps
+    .filter((comp) => comp.external_id !== property.external_id)
+    .filter((comp) => comp.price_per_sqm != null)
+    .map((comp) => Number(comp.price_per_sqm))
+    .filter(Number.isFinite);
+
+  if (!prices.length) {
+    return Number(property.price_per_sqm || 0);
+  }
+
+  return prices.reduce((sum, value) => sum + value, 0) / prices.length;
 }
 
 export function rentalLeveragedMetrics(property, settings, monthlyNetOperatingIncome, options = {}) {

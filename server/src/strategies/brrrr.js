@@ -1,11 +1,11 @@
 import { baseResult, averagePricePerSqm, estimatedMonthlyRent, monthlyNoi, propertyArea, propertyPrice, rentalLeveragedMetrics, transactionCosts } from './shared.js';
 
-export function analyze(property, { database, settings }) {
+export async function analyze(property, { settings }) {
   const price = propertyPrice(property);
   const area = propertyArea(property);
   const rehabCost = area * Number(settings.general?.rehabCostPerSqm ?? 300);
   const transaction = transactionCosts(property, settings);
-  const arv = Math.max(averagePricePerSqm(property, database) * area, price * 1.15);
+  const arv = Math.max(await averagePricePerSqm(property) * area, price * 1.15);
   const totalInvestment = price + rehabCost + transaction;
   const monthlyRent = estimatedMonthlyRent({ ...property, price_eur: arv }, settings);
   const noi = monthlyNoi(property, settings, monthlyRent);

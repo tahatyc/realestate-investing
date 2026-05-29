@@ -75,11 +75,23 @@ function normalizeLimit(limit) {
   return Math.min(Number(limit) || 50, 250);
 }
 
+function normalizeInternalLimit(limit) {
+  return Math.max(0, Math.floor(Number(limit) || 10000));
+}
+
 function normalizeOffset(offset) {
   return Number(offset) || 0;
 }
 
 function normalizeFilters(filters) {
+  return normalizePropertyFilters(filters, normalizeLimit);
+}
+
+function normalizeInternalFilters(filters) {
+  return normalizePropertyFilters(filters, normalizeInternalLimit);
+}
+
+function normalizePropertyFilters(filters, normalizeLimitFn) {
   return {
     includeInactive: filters.includeInactive === true ? true : undefined,
     includeAllPurposes: filters.includeAllPurposes === true ? true : undefined,
@@ -93,7 +105,7 @@ function normalizeFilters(filters) {
     maxPrice: filters.maxPrice,
     minArea: filters.minArea,
     maxArea: filters.maxArea,
-    limit: normalizeLimit(filters.limit),
+    limit: normalizeLimitFn(filters.limit),
     offset: normalizeOffset(filters.offset)
   };
 }
@@ -119,6 +131,11 @@ export async function upsertProperty(property, _database) {
 
 export async function queryProperties(filters = {}, _database) {
   const docs = await getConvexClient().query(anyApi.properties.list, normalizeFilters(filters));
+  return docs.map(propertyDocToRow);
+}
+
+export async function queryAllProperties(filters = {}, _database) {
+  const docs = await getConvexClient().query(anyApi.properties.list, normalizeInternalFilters(filters));
   return docs.map(propertyDocToRow);
 }
 

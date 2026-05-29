@@ -1,5 +1,4 @@
-import { getDb } from '../db/connection.js';
-import { queryProperties } from '../db/properties.js';
+import { queryAllProperties } from '../db/properties.js';
 import { getSettings } from '../db/settings.js';
 import { evaluate } from '../utils/healthFlags.js';
 import { analyze as analyzeAirbnb } from './airbnb.js';
@@ -60,10 +59,11 @@ function decorateResult(result, settings) {
   };
 }
 
-export function analyzeProperty(property, { database = getDb(), settings = getSettings(database) } = {}) {
+export async function analyzeProperty(property, { settings = getSettings() } = {}) {
+  const resolvedSettings = await settings;
   const results = {};
   for (const [name, analyzer] of Object.entries(registry)) {
-    results[name] = decorateResult(analyzer(property, { database, settings }), settings);
+    results[name] = decorateResult(await analyzer(property, { settings: resolvedSettings }), resolvedSettings);
   }
   return results;
 }
@@ -80,20 +80,19 @@ function healthBreakdown(results) {
   );
 }
 
-export function analyzeStrategy(name, options = {}) {
+export async function analyzeStrategy(name, options = {}) {
   const analyzer = registry[name];
   if (!analyzer) {
     throw new Error(`Unknown strategy: ${name}`);
   }
 
-  const database = options.database ?? getDb();
-  const settings = options.settings ?? getSettings(database);
+  const settings = await (options.settings ?? getSettings());
   const limit = Math.min(Number(options.limit) || 50, 250);
   const offset = Number(options.offset) || 0;
-  const properties = queryProperties({ ...options.filters, listingPurpose: 'sale', limit: 10000 }, database);
-  let results = properties
-    .map((property) => decorateResult(analyzer(property, { database, settings }), settings))
-    .filter((result) => result.applicable !== false);
+  const properties = await queryAllProperties({ ...options.filters, listingPurpose: 'sale', limit: 10000 });
+  let results = (await Promise.all(
+    properties.map(async (property) => decorateResult(await analyzer(property, { settings }), settings))
+  )).filter((result) => result.applicable !== false);
 
   if (options.health) {
     results = results.filter((result) => result.health === options.health);

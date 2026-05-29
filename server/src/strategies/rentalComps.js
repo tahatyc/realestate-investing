@@ -1,4 +1,5 @@
 import { propertyArea, propertyPrice } from './shared.js';
+import { queryAllProperties } from '../db/properties.js';
 
 const MIN_SAMPLE_SIZE = 3;
 
@@ -15,40 +16,51 @@ function estimatedMonthlyRentFallback(property, settings) {
   return propertyPrice(property) * (Number(settings.general?.targetGrossYieldPct ?? 6) / 100) / 12;
 }
 
-function matchingTypeClause(property) {
+function matchingTypeFilter(property) {
   if (property.rooms != null) {
-    return { clause: 'rooms = @rooms', params: { rooms: property.rooms } };
+    return { rooms: Number(property.rooms) };
   }
   if (property.type) {
-    return { clause: 'type = @type', params: { type: property.type } };
+    return { type: property.type };
   }
-  return { clause: '1 = 1', params: {} };
+  return {};
 }
 
-function rentalComps(database, property, scope) {
-  const typeMatch = matchingTypeClause(property);
-  const scopeClause = scope === 'neighborhood' ? 'neighborhood = @neighborhood' : 'zone = @zone';
+async function rentalComps(property, scope) {
+  const typeMatch = matchingTypeFilter(property);
+  const scopeFilter = scope === 'neighborhood' ? { neighborhood: property.neighborhood } : { zone: property.zone };
+  if (Object.values(scopeFilter).some((value) => value == null || value === '')) {
+    return [];
+  }
 
-  return database
-    .prepare(
-      `SELECT *
-       FROM properties
-       WHERE is_active = 1
-         AND listing_purpose = 'rent'
-         AND ${scopeClause}
-         AND ${typeMatch.clause}
-         AND price_eur IS NOT NULL`
-    )
-    .all({
-      neighborhood: property.neighborhood,
-      zone: property.zone,
-      ...typeMatch.params
-    });
+  const queryFilter = {
+    listingPurpose: 'rent',
+    ...scopeFilter,
+    ...(typeMatch.type ? { type: typeMatch.type } : {}),
+    limit: 10000
+  };
+  const comps = await queryAllProperties(queryFilter);
+
+  return comps.filter((comp) => {
+    if (typeMatch.rooms != null && Number(comp.rooms) !== typeMatch.rooms) {
+      return false;
+    }
+    if (comp.price_eur == null) {
+      return false;
+    }
+    return Number.isFinite(Number(comp.price_eur));
+  });
 }
 
 function estimateFromSelectedComps(property, comps, source) {
   const area = propertyArea(property);
-  const compsWithArea = comps.filter((comp) => Number(comp.area_sqm) > 0 && Number(comp.price_eur) > 0);
+  const compsWithArea = comps.filter(
+    (comp) =>
+      comp.area_sqm != null &&
+      comp.price_eur != null &&
+      Number(comp.area_sqm) > 0 &&
+      Number(comp.price_eur) > 0
+  );
 
   if (area > 0 && compsWithArea.length >= MIN_SAMPLE_SIZE) {
     const medianRentPerSqm = median(compsWithArea.map((comp) => Number(comp.price_eur) / Number(comp.area_sqm)));
@@ -68,13 +80,13 @@ function estimateFromSelectedComps(property, comps, source) {
   };
 }
 
-export function estimateMonthlyRentFromComps(property, { database, settings }) {
-  const neighborhoodComps = rentalComps(database, property, 'neighborhood');
+export async function estimateMonthlyRentFromComps(property, { settings }) {
+  const neighborhoodComps = await rentalComps(property, 'neighborhood');
   if (neighborhoodComps.length >= MIN_SAMPLE_SIZE) {
     return estimateFromSelectedComps(property, neighborhoodComps, 'neighborhood_comps');
   }
 
-  const zoneComps = rentalComps(database, property, 'zone');
+  const zoneComps = await rentalComps(property, 'zone');
   if (zoneComps.length >= MIN_SAMPLE_SIZE) {
     return estimateFromSelectedComps(property, zoneComps, 'zone_comps');
   }

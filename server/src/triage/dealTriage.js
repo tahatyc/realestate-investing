@@ -1,7 +1,6 @@
 import { defaultTriage, getTriageMap } from '../db/dealTriage.js';
-import { getDb } from '../db/connection.js';
 import { getPriceHistoryByPropertyId } from '../db/priceHistory.js';
-import { queryProperties } from '../db/properties.js';
+import { queryAllProperties } from '../db/properties.js';
 import { getSettings } from '../db/settings.js';
 import { toPropertyResponse } from '../routes/properties.js';
 import { analyzeProperty } from '../strategies/index.js';
@@ -34,8 +33,8 @@ function formatEur(value) {
   return `EUR ${Math.round(value).toLocaleString('en-US')}`;
 }
 
-function priceDropSignal(property, database) {
-  const history = getPriceHistoryByPropertyId(property.id, database);
+async function priceDropSignal(property) {
+  const history = await getPriceHistoryByPropertyId(property.id);
   if (history.length < 2) {
     return null;
   }
@@ -56,7 +55,7 @@ function priceDropSignal(property, database) {
   };
 }
 
-function deriveSignals(result, property, database) {
+async function deriveSignals(result, property) {
   const signals = [];
   const cash = result.cashMetrics ?? {};
   const leveraged = result.leveragedMetrics ?? {};
@@ -142,7 +141,7 @@ function deriveSignals(result, property, database) {
     });
   }
 
-  const priceDrop = priceDropSignal(property, database);
+  const priceDrop = await priceDropSignal(property);
   if (priceDrop) {
     addSignal(signals, priceDrop);
   }
@@ -150,8 +149,8 @@ function deriveSignals(result, property, database) {
   return signals;
 }
 
-function summarizeStrategyResult(strategy, result, property, database) {
-  const signals = deriveSignals({ ...result, strategy }, property, database);
+async function summarizeStrategyResult(strategy, result, property) {
+  const signals = await deriveSignals({ ...result, strategy }, property);
   const signalScore = signals.reduce((sum, signal) => sum + signal.weight, 0);
   const score = toNumber(result.score) ?? 0;
   const healthBonus = result.health === 'green' ? 15 : result.health === 'red' ? -15 : 0;
@@ -165,17 +164,19 @@ function summarizeStrategyResult(strategy, result, property, database) {
   };
 }
 
-function bestOpportunityForProperty(property, database, settings) {
+async function bestOpportunityForProperty(property, settings) {
   let results;
   try {
-    results = analyzeProperty(property, { database, settings });
+    results = await analyzeProperty(property, { settings });
   } catch {
     return null;
   }
 
-  const candidates = Object.entries(results)
-    .filter(([, result]) => result.applicable !== false)
-    .map(([strategy, result]) => summarizeStrategyResult(strategy, result, property, database));
+  const candidates = await Promise.all(
+    Object.entries(results)
+      .filter(([, result]) => result.applicable !== false)
+      .map(([strategy, result]) => summarizeStrategyResult(strategy, result, property))
+  );
 
   if (!candidates.length) {
     return null;
@@ -196,11 +197,11 @@ function bestOpportunityForProperty(property, database, settings) {
   };
 }
 
-export function listDealTriageOpportunities(options = {}, database = getDb()) {
+export async function listDealTriageOpportunities(options = {}, _database) {
   const limit = Math.min(Number(options.limit) || 50, 250);
   const includeRejected = parseBoolean(options.includeRejected);
-  const settings = getSettings(database);
-  const properties = queryProperties(
+  const settings = await getSettings();
+  const properties = await queryAllProperties(
     {
       zone: options.zone,
       type: options.type,
@@ -209,16 +210,15 @@ export function listDealTriageOpportunities(options = {}, database = getDb()) {
       minArea: options.minArea,
       maxArea: options.maxArea,
       limit: 10000
-    },
-    database
+    }
   );
-  const triageMap = getTriageMap(properties.map((property) => property.id), database);
+  const triageMap = await getTriageMap(properties.map((property) => property.id));
   let hiddenRejected = 0;
 
-  const opportunities = properties
-    .map((property) => {
+  const opportunities = (await Promise.all(
+    properties.map(async (property) => {
       const triage = triageMap.get(property.id) ?? defaultTriage(property.id);
-      const best = bestOpportunityForProperty(property, database, settings);
+      const best = await bestOpportunityForProperty(property, settings);
       if (!best) {
         return null;
       }
@@ -233,6 +233,7 @@ export function listDealTriageOpportunities(options = {}, database = getDb()) {
         signals: best.signals.map(({ weight, ...signal }) => signal)
       };
     })
+  ))
     .filter(Boolean)
     .filter((item) => item.rankScore > 0 || item.triage.status !== 'new')
     .filter((item) => {

@@ -1,11 +1,11 @@
 import { estimateMonthlyRentFromComps } from './rentalComps.js';
 import { baseResult, monthlyNoi, propertyPrice, rentalLeveragedMetrics, transactionCosts } from './shared.js';
 
-export function analyze(property, { database, settings }) {
+export async function analyze(property, { settings }) {
   const price = propertyPrice(property);
   const transaction = transactionCosts(property, settings);
   const totalInvestment = price + transaction;
-  const rentEstimate = estimateMonthlyRentFromComps(property, { database, settings });
+  const rentEstimate = await estimateMonthlyRentFromComps(property, { settings });
   const monthlyRent = rentEstimate.monthlyRent;
   const noi = monthlyNoi(property, settings, monthlyRent);
   const grossYieldPct = totalInvestment > 0 ? (monthlyRent * 12 / totalInvestment) * 100 : 0;

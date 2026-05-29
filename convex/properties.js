@@ -210,7 +210,7 @@ export const list = query({
   },
   handler: async ({ db }, args) => {
     const offset = Math.max(0, Math.floor(args.offset ?? 0));
-    const limit = Math.min(500, Math.max(0, Math.floor(args.limit ?? 100)));
+    const limit = Math.min(10000, Math.max(0, Math.floor(args.limit ?? 100)));
     const filtered = await collectFilteredProperties(db, args);
 
     filtered.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));

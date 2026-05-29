@@ -4,7 +4,7 @@ import { isBuyInGreenEligible } from './buyInGreenEligibility.js';
 
 const PRE_ACT14_HOLD_MONTHS = 24;
 
-export function analyze(property, { database, settings }) {
+export async function analyze(property, { settings }) {
   if (!isBuyInGreenEligible(property)) {
     return baseResult(
       'buy-in-green',
@@ -21,7 +21,7 @@ export function analyze(property, { database, settings }) {
   const area = propertyArea(property);
   const transaction = transactionCosts(property, settings);
   const totalInvestment = price + transaction;
-  const averageFinished = Math.max(averagePricePerSqm(property, database), Number(property.price_per_sqm || 0) * 1.15);
+  const averageFinished = Math.max(await averagePricePerSqm(property), Number(property.price_per_sqm || 0) * 1.15);
   const futureValue = averageFinished * area;
   const potentialProfit = futureValue - totalInvestment;
   const appreciationPct = totalInvestment > 0 ? (potentialProfit / totalInvestment) * 100 : 0;

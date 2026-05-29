@@ -1,12 +1,13 @@
 import { baseResult, averagePricePerSqm, estimatedMonthlyRent, monthlyNoi, propertyArea, propertyPrice, rentalLeveragedMetrics, transactionCosts } from './shared.js';
 import { downPayment, loanAmount } from '../utils/mortgage.js';
+import { getPriceHistoryByPropertyId } from '../db/priceHistory.js';
 
-export function analyze(property, { database, settings }) {
+export async function analyze(property, { settings }) {
   const price = propertyPrice(property);
   const area = propertyArea(property);
   const transaction = transactionCosts(property, settings);
   const totalInvestment = price + transaction;
-  const marketValue = Math.max(averagePricePerSqm(property, database) * area, price);
+  const marketValue = Math.max(await averagePricePerSqm(property) * area, price);
   const discountAmount = marketValue - totalInvestment;
   const discountPct = marketValue > 0 ? discountAmount / marketValue * 100 : 0;
   const principal = loanAmount(price, settings.leverage.ltvPct);
@@ -37,7 +38,7 @@ export function analyze(property, { database, settings }) {
       discountAmount,
       discountPct,
       daysOnMarket: daysSince(property.first_seen_at),
-      priceDrops: countPriceDrops(property.id, database)
+      priceDrops: await countPriceDrops(property.id)
     },
     leveragedMetrics,
     discountPct,
@@ -45,10 +46,8 @@ export function analyze(property, { database, settings }) {
   );
 }
 
-function countPriceDrops(propertyId, database) {
-  const rows = database
-    .prepare('SELECT price_eur FROM price_history WHERE property_id = ? ORDER BY recorded_at ASC, id ASC')
-    .all(propertyId);
+async function countPriceDrops(propertyId) {
+  const rows = await getPriceHistoryByPropertyId(propertyId);
   return rows.reduce((drops, row, index) => {
     if (index > 0 && row.price_eur < rows[index - 1].price_eur) {
       return drops + 1;
