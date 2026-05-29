@@ -208,6 +208,31 @@ npx.cmd convex dev --once
 
 `npx.cmd convex dev --once` validates Convex schema and functions when local permissions and Convex auth are available. In restricted environments it may fail before validation with an `EACCES` permission error; record the exact output in the smoke-test report.
 
+## Actual Verification Evidence
+
+Verification run from the repository root on 2026-05-29:
+
+```text
+npm.cmd test
+Result: passed.
+Server tests: 60/60 passed.
+Client tests: 30/30 passed.
+```
+
+```text
+npm.cmd run build
+Result: passed.
+Vite built successfully.
+Modules transformed: 2348.
+Build time: 22.19s.
+```
+
+```text
+npx.cmd convex dev --once
+Result: failed before Convex validation due to environment/network permission.
+Error: connect EACCES 34.160.81.0:443
+```
+
 ## Pass Criteria
 
 The smoke test passes when:
