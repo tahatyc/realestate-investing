@@ -1,9 +1,8 @@
 import { Router } from 'express';
-import { getDb } from '../db/connection.js';
 import { getLatestScrapingRun, listScrapingRuns } from '../db/scrapingRuns.js';
 import { runScrape } from '../scraper/imotbg.js';
 
-export function createScraperRouter({ database = getDb(), scraper = { start: () => runScrape({ database }) } } = {}) {
+export function createScraperRouter({ database = null, scraper = { start: () => runScrape({ database }) } } = {}) {
   const router = Router();
   let activeRun = null;
 
