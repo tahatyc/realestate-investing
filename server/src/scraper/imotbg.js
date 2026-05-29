@@ -3,7 +3,6 @@ import { getPropertyByExternalId, markInactiveByScope, upsertProperty } from '..
 import { createScrapingRun, updateScrapingRun } from '../db/scrapingRuns.js';
 import { completeScrapingRunScope, createScrapingRunScope } from '../db/scrapingRunScopes.js';
 import { recomputeNeighborhoodStats } from '../db/neighborhoodStats.js';
-import { getDb } from '../db/connection.js';
 import { decodeWindows1251 } from './encoding.js';
 import { parseDetailPage, parseSearchResults } from './parser.js';
 import { buildSearchPlan, normalizeScrapeOptions } from './searchPlan.js';
@@ -70,7 +69,7 @@ function mergeDetail(property, detail) {
 }
 
 export async function runScrape({
-  database = getDb(),
+  database: _database,
   pages,
   searchUrls,
   searchPlan,
@@ -91,12 +90,11 @@ export async function runScrape({
           fullScope: true
         }))
       : buildSearchPlan(normalizedOptions));
-  const run = createScrapingRun(
+  const run = await createScrapingRun(
     {
       pagesTotal: plan.length,
       crawlMode: normalizedOptions.fullCrawl ? 'full' : 'bounded'
-    },
-    database
+    }
   );
   const seenByScope = new Map();
   const scopeRows = new Map();
@@ -112,15 +110,14 @@ export async function runScrape({
       const pagesPlanned = plan.filter((entry) => entry.purpose === item.purpose && entry.category === item.category).length;
       scopeRows.set(
         key,
-        createScrapingRunScope(
+        await createScrapingRunScope(
           {
             runId: run.id,
             listingPurpose: item.purpose,
             category: item.category,
             pagesPlanned,
             fullScope: item.fullScope
-          },
-          database
+          }
         )
       );
       seenByScope.set(key, new Set());
@@ -147,7 +144,7 @@ export async function runScrape({
 
       for (const listing of listings) {
         seenExternalIds.add(listing.externalId);
-        const existing = getPropertyByExternalId(listing.externalId, database);
+        const existing = await getPropertyByExternalId(listing.externalId);
         let propertyData = listing;
 
         if (listing.url) {
@@ -159,14 +156,11 @@ export async function runScrape({
           }
         }
 
-        const saved = upsertProperty(propertyData, database);
+        const saved = await upsertProperty(propertyData);
         listingsSaved += 1;
 
         if (!existing || Number(existing.price_eur) !== Number(saved.price_eur)) {
-          insertPriceHistory(
-            { propertyId: saved.id, priceEur: saved.price_eur, priceBgn: saved.price_bgn },
-            database
-          );
+          await insertPriceHistory({ propertyId: saved.id, priceEur: saved.price_eur, priceBgn: saved.price_bgn });
           if (existing) {
             priceChanges += 1;
           }
@@ -177,7 +171,7 @@ export async function runScrape({
         }
       }
 
-      updateScrapingRun(
+      await updateScrapingRun(
         run.id,
         {
           pagesScraped: index + 1,
@@ -187,29 +181,25 @@ export async function runScrape({
           rentalPagesScraped,
           currentPurpose: item.purpose,
           currentCategory: item.category
-        },
-        database
+        }
       );
     }
 
     for (const [key, scope] of scopeRows.entries()) {
       const [listingPurpose, category] = key.split(':');
       const planned = plan.filter((item) => item.purpose === listingPurpose && item.category === category).length;
-      completeScrapingRunScope(scope.id, { pagesScraped: planned, completed: true }, database);
+      await completeScrapingRunScope(scope.id, { pagesScraped: planned, completed: true });
       if (scope.full_scope) {
-        markInactiveByScope(
-          {
-            listingPurpose,
-            category,
-            seenExternalIds: seenByScope.get(key)
-          },
-          database
-        );
+        await markInactiveByScope({
+          listingPurpose,
+          category,
+          seenExternalIds: seenByScope.get(key)
+        });
       }
     }
 
-    recomputeNeighborhoodStats(database);
-    const completed = updateScrapingRun(
+    await recomputeNeighborhoodStats();
+    const completed = await updateScrapingRun(
       run.id,
       {
         status: 'completed',
@@ -220,13 +210,12 @@ export async function runScrape({
         rentalPagesScraped,
         currentPurpose: null,
         currentCategory: null
-      },
-      database
+      }
     );
 
     return { ...completed, listingsFound, listingsSaved, priceChanges };
   } catch (error) {
-    updateScrapingRun(run.id, { status: 'failed', errorMessage: error.message }, database);
+    await updateScrapingRun(run.id, { status: 'failed', errorMessage: error.message });
     throw error;
   }
 }

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { afterEach, describe, test } from 'node:test';
 import { setConvexClientForTests } from '../src/convexClient.js';
 import {
+  countProperties,
   getPropertyByExternalId,
   getPropertyById,
   markInactive,
@@ -78,6 +79,7 @@ describe('property Convex adapter', () => {
     const fakeClient = createFakeClient([
       propertyDoc,
       [propertyDoc],
+      42,
       propertyDoc,
       propertyDoc,
       true,
@@ -97,6 +99,12 @@ describe('property Convex adapter', () => {
       limit: 999,
       offset: '2'
     });
+    const counted = await countProperties({
+      listingPurpose: 'rent',
+      neighborhood: 'Lozenets',
+      limit: 999,
+      offset: '2'
+    });
     const byId = await getPropertyById('property-1');
     const byExternalId = await getPropertyByExternalId('ext-1');
     const inactive = await markInactive('property-1');
@@ -109,13 +117,14 @@ describe('property Convex adapter', () => {
     assert.equal(upserted.external_id, 'ext-1');
     assert.equal(upserted.price_per_sqm, 1500);
     assert.equal(queried[0].neighborhood, 'Lozenets');
+    assert.equal(counted, 42);
     assert.equal(byId.id, 'property-1');
     assert.equal(byExternalId.id, 'property-1');
     assert.equal(inactive, true);
     assert.equal(inactiveByScope, 3);
     assert.deepEqual(
       fakeClient.calls.map((call) => call.type),
-      ['mutation', 'query', 'query', 'query', 'mutation', 'mutation']
+      ['mutation', 'query', 'query', 'query', 'query', 'mutation', 'mutation']
     );
     assert.ok(fakeClient.calls.every((call) => call.fn && typeof call.fn === 'object'));
     assert.deepEqual(fakeClient.calls[0].args, {
@@ -141,6 +150,20 @@ describe('property Convex adapter', () => {
       maxArea: undefined,
       limit: 250,
       offset: 2
+    });
+    assert.deepEqual(fakeClient.calls[2].args, {
+      includeInactive: undefined,
+      includeAllPurposes: undefined,
+      listingPurpose: 'rent',
+      category: undefined,
+      neighborhood: 'Lozenets',
+      zone: undefined,
+      type: undefined,
+      condition: undefined,
+      minPrice: undefined,
+      maxPrice: undefined,
+      minArea: undefined,
+      maxArea: undefined
     });
   });
 });

@@ -144,70 +144,85 @@ export const byId = query({
   }
 });
 
+const propertyFilterArgs = {
+  listingPurpose: v.optional(v.string()),
+  includeAllPurposes: v.optional(v.boolean()),
+  includeInactive: v.optional(v.boolean()),
+  category: optionalNullableString,
+  neighborhood: optionalNullableString,
+  zone: optionalNullableString,
+  type: optionalNullableString,
+  condition: optionalNullableString,
+  minPrice: optionalNullableNumber,
+  maxPrice: optionalNullableNumber,
+  minArea: optionalNullableNumber,
+  maxArea: optionalNullableNumber
+};
+
+async function collectFilteredProperties(db, args) {
+  const includeInactive = args.includeInactive === true;
+  const includeAllPurposes = args.includeAllPurposes === true;
+  const purposeFilter = hasValue(args.listingPurpose) ? args.listingPurpose : includeAllPurposes ? null : 'sale';
+  const usePurpose = purposeFilter !== null;
+  const useCategory = hasValue(args.category);
+
+  let queryBuilder;
+
+  if (!includeInactive && usePurpose && useCategory) {
+    queryBuilder = db
+      .query('properties')
+      .withIndex('by_active_purpose_category', (q) =>
+        q.eq('isActive', true).eq('listingPurpose', purposeFilter).eq('category', args.category)
+      );
+  } else if (!includeInactive && usePurpose) {
+    queryBuilder = db
+      .query('properties')
+      .withIndex('by_active_purpose_updated', (q) =>
+        q.eq('isActive', true).eq('listingPurpose', purposeFilter)
+      )
+      .order('desc');
+  } else {
+    queryBuilder = db.query('properties');
+  }
+
+  const docs = await queryBuilder.collect();
+  return docs.filter((doc) => {
+    if (!includeInactive && doc.isActive !== true) return false;
+    if (usePurpose && doc.listingPurpose !== purposeFilter) return false;
+    if (useCategory && doc.category !== args.category) return false;
+    if (hasValue(args.neighborhood) && doc.neighborhood !== args.neighborhood) return false;
+    if (hasValue(args.zone) && doc.zone !== args.zone) return false;
+    if (hasValue(args.type) && doc.type !== args.type) return false;
+    if (hasValue(args.condition) && doc.condition !== args.condition) return false;
+    if (args.minPrice != null && doc.priceEur < args.minPrice) return false;
+    if (args.maxPrice != null && doc.priceEur > args.maxPrice) return false;
+    if (args.minArea != null && (doc.areaSqm == null || doc.areaSqm < args.minArea)) return false;
+    if (args.maxArea != null && (doc.areaSqm == null || doc.areaSqm > args.maxArea)) return false;
+    return true;
+  });
+}
+
 export const list = query({
   args: {
-    listingPurpose: v.optional(v.string()),
-    includeAllPurposes: v.optional(v.boolean()),
-    includeInactive: v.optional(v.boolean()),
-    category: optionalNullableString,
-    neighborhood: optionalNullableString,
-    zone: optionalNullableString,
-    type: optionalNullableString,
-    condition: optionalNullableString,
-    minPrice: optionalNullableNumber,
-    maxPrice: optionalNullableNumber,
-    minArea: optionalNullableNumber,
-    maxArea: optionalNullableNumber,
+    ...propertyFilterArgs,
     limit: v.optional(v.number()),
     offset: v.optional(v.number())
   },
   handler: async ({ db }, args) => {
-    const includeInactive = args.includeInactive === true;
-    const includeAllPurposes = args.includeAllPurposes === true;
-    const purposeFilter = hasValue(args.listingPurpose) ? args.listingPurpose : includeAllPurposes ? null : 'sale';
-    const usePurpose = purposeFilter !== null;
-    const useCategory = hasValue(args.category);
-
-    let queryBuilder;
-
-    if (!includeInactive && usePurpose && useCategory) {
-      queryBuilder = db
-        .query('properties')
-        .withIndex('by_active_purpose_category', (q) =>
-          q.eq('isActive', true).eq('listingPurpose', purposeFilter).eq('category', args.category)
-        );
-    } else if (!includeInactive && usePurpose) {
-      queryBuilder = db
-        .query('properties')
-        .withIndex('by_active_purpose_updated', (q) =>
-          q.eq('isActive', true).eq('listingPurpose', purposeFilter)
-        )
-        .order('desc');
-    } else {
-      queryBuilder = db.query('properties');
-    }
-
     const offset = Math.max(0, Math.floor(args.offset ?? 0));
     const limit = Math.min(500, Math.max(0, Math.floor(args.limit ?? 100)));
-    const docs = await queryBuilder.collect();
-    const filtered = docs.filter((doc) => {
-      if (!includeInactive && doc.isActive !== true) return false;
-      if (usePurpose && doc.listingPurpose !== purposeFilter) return false;
-      if (useCategory && doc.category !== args.category) return false;
-      if (hasValue(args.neighborhood) && doc.neighborhood !== args.neighborhood) return false;
-      if (hasValue(args.zone) && doc.zone !== args.zone) return false;
-      if (hasValue(args.type) && doc.type !== args.type) return false;
-      if (hasValue(args.condition) && doc.condition !== args.condition) return false;
-      if (args.minPrice != null && doc.priceEur < args.minPrice) return false;
-      if (args.maxPrice != null && doc.priceEur > args.maxPrice) return false;
-      if (args.minArea != null && (doc.areaSqm == null || doc.areaSqm < args.minArea)) return false;
-      if (args.maxArea != null && (doc.areaSqm == null || doc.areaSqm > args.maxArea)) return false;
-      return true;
-    });
+    const filtered = await collectFilteredProperties(db, args);
 
     filtered.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 
     return filtered.slice(offset, offset + limit);
+  }
+});
+
+export const count = query({
+  args: propertyFilterArgs,
+  handler: async ({ db }, args) => {
+    return (await collectFilteredProperties(db, args)).length;
   }
 });
 

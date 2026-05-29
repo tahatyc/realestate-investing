@@ -98,6 +98,11 @@ function normalizeFilters(filters) {
   };
 }
 
+function normalizeCountFilters(filters) {
+  const { limit: _limit, offset: _offset, ...normalized } = normalizeFilters(filters);
+  return normalized;
+}
+
 export async function upsertProperty(property, _database) {
   const record = normalizeProperty(property);
 
@@ -115,6 +120,10 @@ export async function upsertProperty(property, _database) {
 export async function queryProperties(filters = {}, _database) {
   const docs = await getConvexClient().query(anyApi.properties.list, normalizeFilters(filters));
   return docs.map(propertyDocToRow);
+}
+
+export async function countProperties(filters = {}, _database) {
+  return await getConvexClient().query(anyApi.properties.count, normalizeCountFilters(filters));
 }
 
 export async function getPropertyById(id, _database) {

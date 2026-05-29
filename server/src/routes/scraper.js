@@ -1,43 +1,47 @@
 import { Router } from 'express';
 import { getDb } from '../db/connection.js';
-import { getLatestScrapingRun } from '../db/scrapingRuns.js';
+import { getLatestScrapingRun, listScrapingRuns } from '../db/scrapingRuns.js';
 import { runScrape } from '../scraper/imotbg.js';
 
 export function createScraperRouter({ database = getDb(), scraper = { start: () => runScrape({ database }) } } = {}) {
   const router = Router();
   let activeRun = null;
 
-  router.post('/start', (req, res) => {
+  router.post('/start', asyncHandler(async (req, res) => {
     if (activeRun) {
       return res.status(409).json({ status: 'running', message: 'Scrape already running' });
     }
 
     activeRun = Promise.resolve()
       .then(() => scraper.start(req.body ?? {}))
+      .catch((error) => {
+        console.error('Scrape failed:', error);
+      })
       .finally(() => {
         activeRun = null;
       });
 
     res.status(202).json({ status: 'running', message: 'Scraping started' });
-  });
+  }));
 
-  router.get('/status', (_req, res) => {
-    const run = getLatestScrapingRun(database);
+  router.get('/status', asyncHandler(async (_req, res) => {
+    const run = await getLatestScrapingRun(database);
     if (!run) {
       return res.json({ status: 'idle', progress: null });
     }
     return res.json(toRunResponse(run));
-  });
+  }));
 
-  router.get('/history', (_req, res) => {
-    const runs = database
-      .prepare('SELECT * FROM scraping_runs ORDER BY started_at DESC, id DESC LIMIT 25')
-      .all()
-      .map(toRunResponse);
+  router.get('/history', asyncHandler(async (_req, res) => {
+    const runs = (await listScrapingRuns(25, database)).map(toRunResponse);
     res.json({ runs });
-  });
+  }));
 
   return router;
+}
+
+function asyncHandler(handler) {
+  return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 }
 
 function toRunResponse(run) {

@@ -6,8 +6,8 @@ import { listDealTriageOpportunities } from '../triage/dealTriage.js';
 export function createTriageRouter({ database } = {}) {
   const router = Router();
 
-  router.get('/', (req, res) => {
-    const result = listDealTriageOpportunities(
+  router.get('/', asyncHandler(async (req, res) => {
+    const result = await listDealTriageOpportunities(
       {
         includeRejected: req.query.includeRejected,
         zone: req.query.zone,
@@ -22,16 +22,16 @@ export function createTriageRouter({ database } = {}) {
     );
 
     res.json(result);
-  });
+  }));
 
-  router.put('/:propertyId', (req, res) => {
-    const property = getPropertyById(req.params.propertyId, database);
+  router.put('/:propertyId', asyncHandler(async (req, res) => {
+    const property = await getPropertyById(req.params.propertyId, database);
     if (!property) {
       return res.status(404).json({ error: 'Property not found' });
     }
 
     try {
-      const triage = upsertTriage(
+      const triage = await upsertTriage(
         property.id,
         {
           status: req.body.status,
@@ -44,7 +44,11 @@ export function createTriageRouter({ database } = {}) {
     } catch (error) {
       return res.status(400).json({ error: error.message });
     }
-  });
+  }));
 
   return router;
+}
+
+function asyncHandler(handler) {
+  return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 }

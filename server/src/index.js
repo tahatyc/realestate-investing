@@ -29,6 +29,11 @@ export function createApp({ database, scraper } = {}) {
   app.use('/api/settings', createSettingsRouter({ database: activeDatabase }));
   app.use('/api/overview', createOverviewRouter({ database: activeDatabase }));
 
+  app.use((error, _req, res, _next) => {
+    console.error(error);
+    res.status(500).json({ error: error.message || 'Internal server error' });
+  });
+
   return app;
 }
 

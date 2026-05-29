@@ -4,14 +4,14 @@ import { analyzeStrategy, strategyNames } from '../strategies/index.js';
 export function createStrategiesRouter({ database } = {}) {
   const router = Router();
 
-  router.get('/:name', (req, res) => {
+  router.get('/:name', asyncHandler(async (req, res) => {
     try {
       const name = req.params.name;
       if (!strategyNames().includes(name)) {
         return res.status(404).json({ error: 'Unknown strategy' });
       }
 
-      const result = analyzeStrategy(name, {
+      const result = await analyzeStrategy(name, {
         database,
         limit: req.query.limit,
         offset: req.query.offset,
@@ -36,7 +36,11 @@ export function createStrategiesRouter({ database } = {}) {
     } catch (error) {
       res.status(500).json({ error: error.message });
     }
-  });
+  }));
 
   return router;
+}
+
+function asyncHandler(handler) {
+  return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 }
